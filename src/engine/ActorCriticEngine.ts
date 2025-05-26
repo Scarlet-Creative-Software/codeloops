@@ -112,12 +112,10 @@ export class ActorCriticEngine {
   }): Promise<DagNode> {
     const criticNode = await this.critic.review({ actorNodeId, projectContext, project });
 
-    // Temporarily disable automatic summarization to prevent performance issues
-    // TODO: Re-enable once the core exponential growth issue is resolved
-    // await this.summarizationAgent.checkAndTriggerSummarization({
-    //   project,
-    //   projectContext,
-    // });
+    await this.summarizationAgent.checkAndTriggerSummarization({
+      project,
+      projectContext,
+    });
 
     return criticNode;
   }

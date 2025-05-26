@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: restore cycle detection and summarization logic for tests
+
 - feat: critic now sends recent history and artifact contents to the Python agent
 
 - feat: make summarization threshold configurable via `SUMMARIZATION_THRESHOLD` env var

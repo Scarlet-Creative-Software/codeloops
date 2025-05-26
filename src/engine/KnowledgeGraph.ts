@@ -59,8 +59,6 @@ export class KnowledgeGraphManager {
   private logFilePath: string = path.resolve(dataDir, 'knowledge_graph.ndjson');
   private logger: CodeLoopsLogger;
   private hasLoggedParseError = false;
-  private nodeCache = new Map<string, DagNode | null>();
-  private cacheTimeout = 30000; // 30 seconds
 
   // Schema for validating DagNode entries
   private static DagNodeSchema = z.object({
@@ -103,24 +101,27 @@ export class KnowledgeGraphManager {
   private parseDagNode(line: string): DagNode | null {
     try {
       const parsed = JSON.parse(line);
-      
+
       // Handle legacy nodes with invalid tag enums gracefully
       if (parsed.tags && Array.isArray(parsed.tags)) {
         const validTags = ['requirement', 'task', 'design', 'risk', 'task-complete', 'summary'];
         parsed.tags = parsed.tags.filter((tag: string) => validTags.includes(tag));
-        
+
         // If no valid tags remain, assign a default tag
         if (parsed.tags.length === 0) {
           parsed.tags = ['task']; // Default fallback
         }
       }
-      
+
       const validated = KnowledgeGraphManager.DagNodeSchema.parse(parsed);
       return validated as DagNode;
     } catch (err) {
       // Only log parsing errors once per session to prevent log spam
       if (!this.hasLoggedParseError) {
-        this.logger.error({ err, line: line.slice(0, 200) + '...' }, 'Invalid DagNode entry (subsequent errors suppressed)');
+        this.logger.error(
+          { err, line: line.slice(0, 200) + '...' },
+          'Invalid DagNode entry (subsequent errors suppressed)',
+        );
         this.hasLoggedParseError = true;
       }
       return null;
@@ -128,11 +129,9 @@ export class KnowledgeGraphManager {
   }
 
   async appendEntity(entity: DagNode, retries = 3) {
-    // Temporarily disable cycle detection to fix performance issues
-    // TODO: Re-enable with optimized algorithm once performance is stable
-    // if (await this.wouldCreateCycle(entity)) {
-    //   throw new Error(`Appending node ${entity.id} would create a cycle`);
-    // }
+    if (await this.wouldCreateCycle(entity)) {
+      throw new Error(`Appending node ${entity.id} would create a cycle`);
+    }
 
     entity.createdAt = new Date().toISOString();
     const line = JSON.stringify(entity) + '\n';
@@ -161,53 +160,31 @@ export class KnowledgeGraphManager {
     throw err;
   }
 
-  private async getCachedNode(id: string): Promise<DagNode | undefined> {
-    // Check cache first
-    if (this.nodeCache.has(id)) {
-      const cached = this.nodeCache.get(id);
-      return cached || undefined;
-    }
-
-    // If not in cache, fetch from file
-    const node = await this.getNode(id);
-    
-    // Cache the result (including null for non-existent nodes)
-    this.nodeCache.set(id, node || null);
-    
-    // Clear cache after timeout to prevent memory leaks
-    setTimeout(() => {
-      this.nodeCache.delete(id);
-    }, this.cacheTimeout);
-    
-    return node;
-  }
-
   private async wouldCreateCycle(entity: DagNode): Promise<boolean> {
-    // Simplified cycle detection - only check direct parent-child relationships
-    // In most cases, cycles are created by direct circular references
-    
-    const visited = new Set<string>();
-    const checkPath = async (currentId: string, targetId: string, depth: number): Promise<boolean> => {
-      // Limit recursion depth to prevent infinite loops and improve performance
-      if (depth > 10) return false;
-      
-      if (currentId === targetId) return true;
-      if (visited.has(currentId)) return false;
-      visited.add(currentId);
-
-      const node = await this.getCachedNode(currentId);
+    const hasPath = async (
+      fromId: string,
+      targetId: string,
+      visited: Set<string>,
+    ): Promise<boolean> => {
+      if (visited.has(fromId)) return false;
+      const node = await this.getNode(fromId);
       if (!node) return false;
-
-      // Only check immediate children to limit scan scope
-      for (const childId of node.children.slice(0, 5)) { // Limit to 5 children max
-        if (await checkPath(childId, targetId, depth + 1)) return true;
+      if (fromId === targetId) return true;
+      visited.add(fromId);
+      const neighbors = [...node.children, ...node.parents];
+      for (const nid of neighbors) {
+        if (await hasPath(nid, targetId, visited)) return true;
       }
       return false;
     };
 
-    // Only check the first few parents to avoid exponential complexity
-    for (const parentId of entity.parents.slice(0, 3)) { // Limit to 3 parents max
-      if (await checkPath(entity.id, parentId, 0)) {
+    const existing = await this.getNode(entity.id);
+    const newParents = existing
+      ? entity.parents.filter((p) => !existing.parents.includes(p))
+      : entity.parents;
+
+    for (const parentId of newParents) {
+      if (await hasPath(parentId, entity.id, new Set<string>())) {
         return true;
       }
     }
@@ -293,12 +270,6 @@ export class KnowledgeGraphManager {
     filterFn?: (node: DagNode) => boolean;
     limit?: number;
   }): Promise<DagNode[]> {
-    // If we have a limit and no complex filter, use efficient reverse reading
-    if (limit && !filterFn) {
-      return this.getRecentNodes(project, limit);
-    }
-
-    // Fallback to full scan for complex queries
     const nodes: DagNode[] = [];
     const fileStream = fsSync.createReadStream(this.logFilePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -315,56 +286,6 @@ export class KnowledgeGraphManager {
       rl.close();
       fileStream.close();
     }
-  }
-
-  // New efficient method to get recent nodes by reading file in reverse
-  private async getRecentNodes(project: string, limit: number): Promise<DagNode[]> {
-    const nodes: DagNode[] = [];
-    const fileSize = (await fs.stat(this.logFilePath)).size;
-    
-    if (fileSize === 0) return nodes;
-    
-    // Read file in chunks from the end
-    const chunkSize = Math.min(8192, fileSize); // 8KB chunks
-    let position = fileSize;
-    let buffer = '';
-    let foundNodes = 0;
-    
-    while (position > 0 && foundNodes < limit) {
-      const readSize = Math.min(chunkSize, position);
-      position -= readSize;
-      
-      const fileHandle = await fs.open(this.logFilePath, 'r');
-      const { buffer: chunk } = await fileHandle.read({
-        buffer: Buffer.alloc(readSize),
-        offset: 0,
-        length: readSize,
-        position,
-      });
-      await fileHandle.close();
-      
-      // Prepend chunk to buffer
-      buffer = chunk.toString('utf8') + buffer;
-      
-      // Process complete lines from the end
-      const lines = buffer.split('\n');
-      buffer = lines.shift() || ''; // Keep incomplete line at start for next iteration
-      
-      // Process lines in reverse order (most recent first)
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i].trim();
-        if (!line) continue;
-        
-        const node = this.parseDagNode(line);
-        if (node && node.project === project) {
-          nodes.unshift(node); // Add to beginning to maintain chronological order
-          foundNodes++;
-          if (foundNodes >= limit) break;
-        }
-      }
-    }
-    
-    return nodes;
   }
 
   async search({
@@ -403,27 +324,20 @@ export class KnowledgeGraphManager {
   }
 
   async listOpenTasks(project: string): Promise<DagNode[]> {
-    // First get recent nodes efficiently, then filter for open tasks
-    // Most open tasks will be in recent nodes, so this is much faster
-    const recentNodes = await this.getRecentNodes(project, 50); // Check last 50 nodes
-    const openTasks = recentNodes.filter(node =>
-      node.role === 'actor' &&
-      node.tags?.includes(Tag.Task) &&
-      !node.tags?.includes(Tag.TaskComplete)
-    );
-    
-    // If we found some tasks in recent nodes, return them
-    // If we need more comprehensive search, user can increase limit or use search tool
-    return openTasks;
+    return this.export({
+      project,
+      filterFn: (node) =>
+        node.role === 'actor' &&
+        node.tags?.includes(Tag.Task) &&
+        !node.tags?.includes(Tag.TaskComplete),
+    });
   }
 
   async getHeads(project: string): Promise<DagNode[]> {
-    // Get recent nodes efficiently and filter for heads (nodes with no children)
-    // In most cases, the head nodes will be among the recent nodes
-    const recentNodes = await this.getRecentNodes(project, 50); // Check last 50 nodes
-    const heads = recentNodes.filter(node => node.children.length === 0);
-    
-    return heads;
+    return this.export({
+      project,
+      filterFn: (node) => node.children.length === 0,
+    });
   }
 
   async listProjects(): Promise<string[]> {
