@@ -217,6 +217,21 @@ describe('KnowledgeGraphManager', () => {
       expect(retrieved?.thought).toBe('updated thought');
       expect(retrieved?.createdAt).toBe(node.createdAt);
     });
+
+    it('uses the cache to avoid repeated file reads', async () => {
+      const node = createTestNode('test-project');
+      await kg.appendEntity(node);
+      // @ts-expect-error access private cache for testing
+      const cache: Map<string, DagNode> = kg.nodeCache;
+      cache.clear();
+      expect(cache.size).toBe(0);
+
+      await kg.getNode(node.id); // populate cache
+      expect(cache.size).toBe(1);
+
+      await kg.getNode(node.id); // should use cache
+      expect(cache.size).toBe(1);
+    });
   });
 
   describe('resume', () => {

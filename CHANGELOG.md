@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - fix: cycle detection only traverses children links when validating new parents
+- feat: cache DagNodes in KnowledgeGraphManager with configurable expiration
 
 - fix: restore cycle detection and summarization logic for tests
 
