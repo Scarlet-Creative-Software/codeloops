@@ -333,43 +333,48 @@ export class KnowledgeGraphManager {
     let position = fileSize;
     let buffer = '';
     let foundNodes = 0;
+    let fileHandle: fs.FileHandle | undefined;
 
-    while (position > 0 && foundNodes < limit) {
-      const readSize = Math.min(chunkSize, position);
-      position -= readSize;
+    try {
+      fileHandle = await fs.open(this.logFilePath, 'r');
 
-      const fileHandle = await fs.open(this.logFilePath, 'r');
-      const { buffer: chunk } = await fileHandle.read({
-        buffer: Buffer.alloc(readSize),
-        offset: 0,
-        length: readSize,
-        position,
-      });
-      await fileHandle.close();
+      while (position > 0 && foundNodes < limit) {
+        const readSize = Math.min(chunkSize, position);
+        position -= readSize;
 
-      buffer = chunk.toString('utf8') + buffer;
+        const { buffer: chunk } = await fileHandle.read({
+          buffer: Buffer.alloc(readSize),
+          offset: 0,
+          length: readSize,
+          position,
+        });
 
-      const lines = buffer.split('\n');
-      buffer = lines.shift() || '';
+        buffer = chunk.toString('utf8') + buffer;
 
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i].trim();
-        if (!line) continue;
+        const lines = buffer.split('\n');
+        buffer = lines.shift() || '';
 
-        const node = this.parseDagNode(line);
-        if (node && node.project === project) {
-          nodes.unshift(node);
-          foundNodes++;
-          if (foundNodes >= limit) break;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          const node = this.parseDagNode(line);
+          if (node && node.project === project) {
+            nodes.unshift(node);
+            foundNodes++;
+            if (foundNodes >= limit) break;
+          }
         }
       }
-    }
 
-    if (nodes.length < limit && buffer.trim()) {
-      const node = this.parseDagNode(buffer.trim());
-      if (node && node.project === project) {
-        nodes.unshift(node);
+      if (nodes.length < limit && buffer.trim()) {
+        const node = this.parseDagNode(buffer.trim());
+        if (node && node.project === project) {
+          nodes.unshift(node);
+        }
       }
+    } finally {
+      await fileHandle?.close();
     }
 
     return nodes;
