@@ -161,33 +161,36 @@ export class KnowledgeGraphManager {
   }
 
   private async wouldCreateCycle(entity: DagNode): Promise<boolean> {
-    const hasPath = async (
-      fromId: string,
-      targetId: string,
-      visited: Set<string>,
-    ): Promise<boolean> => {
-      if (visited.has(fromId)) return false;
-      const node = await this.getNode(fromId);
-      if (!node) return false;
-      if (fromId === targetId) return true;
-      visited.add(fromId);
-      const neighbors = [...node.children, ...node.parents];
-      for (const nid of neighbors) {
-        if (await hasPath(nid, targetId, visited)) return true;
-      }
-      return false;
-    };
-
     const existing = await this.getNode(entity.id);
     const newParents = existing
       ? entity.parents.filter((p) => !existing.parents.includes(p))
       : entity.parents;
 
-    for (const parentId of newParents) {
-      if (await hasPath(parentId, entity.id, new Set<string>())) {
+    if (newParents.length === 0) return false;
+
+    const targets = new Set(newParents);
+    const visited = new Set<string>();
+    const stack = [entity.id];
+
+    while (stack.length > 0) {
+      const currentId = stack.pop() as string;
+      if (visited.has(currentId)) continue;
+      visited.add(currentId);
+
+      if (currentId !== entity.id && targets.has(currentId)) {
         return true;
       }
+
+      const children =
+        currentId === entity.id
+          ? entity.children
+          : ((await this.getNode(currentId))?.children ?? []);
+
+      for (const childId of children) {
+        if (!visited.has(childId)) stack.push(childId);
+      }
     }
+
     return false;
   }
 

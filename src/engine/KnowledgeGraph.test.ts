@@ -145,6 +145,21 @@ describe('KnowledgeGraphManager', () => {
       await expect(kg.appendEntity(merge)).resolves.not.toThrow();
     });
 
+    it('allows linking to an ancestor when only parent links exist', async () => {
+      const nodeA = createTestNode('test-project');
+      await kg.appendEntity(nodeA);
+
+      const nodeB = createTestNode('test-project', 'actor', [nodeA.id]);
+      await kg.appendEntity(nodeB);
+
+      const nodeC = createTestNode('test-project', 'actor', [nodeB.id]);
+      await kg.appendEntity(nodeC);
+
+      nodeA.parents = [nodeC.id];
+
+      await expect(kg.appendEntity(nodeA)).resolves.not.toThrow();
+    });
+
     it('throws when a node already reaches its parent through children', async () => {
       const nodeA = createTestNode('test-project');
       await kg.appendEntity(nodeA);
