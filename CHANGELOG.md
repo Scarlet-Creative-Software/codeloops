@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: critic now sends recent history and artifact contents to the Python agent
+
 - feat: make summarization threshold configurable via `SUMMARIZATION_THRESHOLD` env var
 
 - chore: warn if critic config still uses progress_display in setup script

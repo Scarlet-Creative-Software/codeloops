@@ -3,6 +3,7 @@ import { to } from 'await-to-js';
 import { v4 as uuid } from 'uuid';
 import { KnowledgeGraphManager, DagNode } from '../engine/KnowledgeGraph.ts';
 import { getInstance as getLogger } from '../logger.ts';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
@@ -68,9 +69,23 @@ export class Critic {
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = path.dirname(__filename);
       const criticDir = path.resolve(__dirname, '..', '..', 'agents', 'critic');
-      const targetJson = JSON.stringify(target);
+
+      const history = await this.kg.resume({ project, limit: 10 });
+      const files: Record<string, string> = {};
+      if (target.diff && target.artifacts) {
+        for (const a of target.artifacts) {
+          const fp = path.resolve(projectContext, a.path);
+          try {
+            files[a.path] = await fs.readFile(fp, 'utf8');
+          } catch (err) {
+            getLogger().warn({ err }, `Failed reading artifact ${fp}`);
+          }
+        }
+      }
+
+      const message = JSON.stringify({ target, history, files });
       const [criticError, output] = await to(
-        execa('uv', ['run', 'agent.py', '--quiet', '--agent', 'default', '--message', targetJson], {
+        execa('uv', ['run', 'agent.py', '--quiet', '--agent', 'default', '--message', message], {
           cwd: criticDir,
         }),
       );

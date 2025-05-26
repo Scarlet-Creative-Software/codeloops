@@ -1,4 +1,6 @@
 import asyncio
+import json
+import sys
 from mcp_agent.core.fastagent import FastAgent
 
 fast = FastAgent("CodeLoops Quality Critic")
@@ -60,11 +62,47 @@ When reviewing an actor node:
 - `approved`: The node meets all requirements and can proceed
 - `needs_revision`: The node needs specific improvements (always include verdictReason)
 - `reject`: The node is fundamentally flawed or has reached max revision attempts (default: 2)
+
+You receive data via `--message` as a JSON string with this shape:
+`{"target": DagNode, "history": DagNode[], "files": {path: content}}`.
+Use the history and files when forming your critique.
 """
 )
 async def main():
     # use the --model command line switch or agent arguments to change model
     async with fast.run() as agent:
+
+        if "--message" in sys.argv:
+            try:
+                idx = sys.argv.index("--message") + 1
+                data = json.loads(sys.argv[idx])
+            except Exception as err:
+                print(json.dumps({"verdict": "reject", "verdictReason": f"invalid input: {err}"}))
+                return
+
+            target = data.get("target", {})
+            history = data.get("history", [])
+            files = data.get("files", {})
+
+            prompt = (
+                "Please review the following actor node:\n"
+                + json.dumps(target, indent=2)
+            )
+            if history:
+                prompt += "\n\nRecent history:\n" + json.dumps(history, indent=2)
+            if files:
+                prompt += "\n\nFiles:\n" + json.dumps(files, indent=2)
+
+            reply = await agent.send(prompt)
+            for _ in range(2):
+                try:
+                    res = json.loads(reply)
+                    print(json.dumps(res))
+                    break
+                except json.JSONDecodeError:
+                    reply = await agent.send('Respond ONLY with JSON {"verdict":"approved|needs_revision|reject", "verdictReason":""}')
+            return
+
         await agent.interactive()
 
 

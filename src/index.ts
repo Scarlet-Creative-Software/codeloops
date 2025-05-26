@@ -12,16 +12,18 @@ import { CodeLoopsLogger, getInstance as getLogger, setGlobalLogger } from './lo
 import { extractProjectName } from './utils/project.ts';
 
 // Helper function to safely stringify large objects
-function safeStringify(obj: any, maxLength = 10000): string {
+function safeStringify(obj: unknown, maxLength = 10000): string {
   const jsonString = JSON.stringify(obj, null, 2);
   if (jsonString.length <= maxLength) {
     return jsonString;
   }
-  
+
   // If too large, return a truncated version with summary
   const truncated = jsonString.slice(0, maxLength);
-  const nodeCount = Array.isArray(obj) ? obj.length : (obj ? 1 : 0);
-  return truncated + `\n... [TRUNCATED - Total length: ${jsonString.length} chars, Nodes: ${nodeCount}]`;
+  const nodeCount = Array.isArray(obj) ? obj.length : obj ? 1 : 0;
+  return (
+    truncated + `\n... [TRUNCATED - Total length: ${jsonString.length} chars, Nodes: ${nodeCount}]`
+  );
 }
 
 // -----------------------------------------------------------------------------
@@ -349,12 +351,10 @@ async function main() {
         content: [
           {
             type: 'text',
-            text: safeStringify(
-              {
-                activeProject,
-                projects,
-              },
-            ),
+            text: safeStringify({
+              activeProject,
+              projects,
+            }),
           },
         ],
       };

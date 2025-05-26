@@ -85,6 +85,7 @@ The actor-critic system follows this workflow:
    - Include metadata so the graph can track progress:
      - **`parents`** – IDs of previous nodes this thought depends on
      - **`diff`** – optional git-style diff summarizing code changes
+     - When `diff` is used with `artifacts`, the critic loads those files to inform its review
      - **`tags`** – categorize the node for later search. Tags are defined in the
        [`Tag` enum`](../src/engine/tags.ts):
        - `Tag.Requirement`
