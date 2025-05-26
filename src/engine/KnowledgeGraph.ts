@@ -59,6 +59,19 @@ export class KnowledgeGraphManager {
   private logFilePath: string = path.resolve(dataDir, 'knowledge_graph.ndjson');
   private logger: CodeLoopsLogger;
   private hasLoggedParseError = false;
+  private nodeCache = new Map<string, DagNode | null>();
+
+  private static CACHE_TTL = (() => {
+    const env = process.env.KG_NODE_CACHE_TTL;
+    const parsed = env ? parseInt(env, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  })();
+
+  private cacheNode(id: string, node: DagNode) {
+    const cloned = JSON.parse(JSON.stringify(node)) as DagNode;
+    this.nodeCache.set(id, cloned);
+    setTimeout(() => this.nodeCache.delete(id), KnowledgeGraphManager.CACHE_TTL * 1000);
+  }
 
   // Schema for validating DagNode entries
   private static DagNodeSchema = z.object({
@@ -141,6 +154,7 @@ export class KnowledgeGraphManager {
       try {
         await lock(this.logFilePath, { retries: 0 });
         await fs.appendFile(this.logFilePath, line, 'utf8');
+        this.cacheNode(entity.id, entity);
         return;
       } catch (e: unknown) {
         err = e as Error;
@@ -194,7 +208,7 @@ export class KnowledgeGraphManager {
     return false;
   }
 
-  async getNode(id: string): Promise<DagNode | undefined> {
+  private async readNodeFromFile(id: string): Promise<DagNode | undefined> {
     const fileStream = fsSync.createReadStream(this.logFilePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
     let found: DagNode | undefined;
@@ -210,6 +224,21 @@ export class KnowledgeGraphManager {
       rl.close();
       fileStream.close();
     }
+  }
+
+  async getCachedNode(id: string): Promise<DagNode | undefined> {
+    if (this.nodeCache.has(id)) {
+      return this.nodeCache.get(id) ?? undefined;
+    }
+    const node = await this.readNodeFromFile(id);
+    if (node) {
+      this.cacheNode(id, node);
+    }
+    return node;
+  }
+
+  async getNode(id: string): Promise<DagNode | undefined> {
+    return this.getCachedNode(id);
   }
 
   async getNeighbors(id: string, depth = 1): Promise<DagNode[]> {
