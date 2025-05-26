@@ -236,8 +236,7 @@ describe('KnowledgeGraphManager', () => {
 
   describe('resume', () => {
     it('should return recent nodes', async () => {
-      // Create multiple nodes
-      const nodes = [];
+      const nodes = [] as DagNode[];
       for (let i = 0; i < 10; i++) {
         const node = createTestNode('test-project');
         node.thought = `Node ${i}`;
@@ -245,17 +244,11 @@ describe('KnowledgeGraphManager', () => {
         nodes.push(node);
       }
 
-      // Get the most recent nodes
       const result = await kg.resume({ project: 'test-project', limit: 5 });
-
-      // Check that we have nodes
-      expect(result.length).toBeGreaterThan(0);
-
-      // Verify that the nodes are from our test set
-      // The exact order might vary based on implementation details
-      for (const node of result) {
-        expect(node.thought).toMatch(/^Node \d+$/);
-      }
+      expect(result.length).toBe(5);
+      expect(result.map((n) => n.id)).toEqual(
+        nodes.slice(-5).map((n) => n.id),
+      );
     });
 
     it('should return all nodes if limit is not specified', async () => {
@@ -491,6 +484,19 @@ describe('KnowledgeGraphManager', () => {
       const results = await kg.listOpenTasks('test-project');
       expect(results.map((n) => n.id)).toEqual([openTask.id]);
     });
+
+    it('respects the limit parameter using recent nodes', async () => {
+      const task1 = createTestNode('test-project');
+      task1.tags = [Tag.Task];
+      await kg.appendEntity(task1);
+
+      const task2 = createTestNode('test-project');
+      task2.tags = [Tag.Task];
+      await kg.appendEntity(task2);
+
+      const result = await kg.listOpenTasks('test-project', 1);
+      expect(result.map((n) => n.id)).toEqual([task2.id]);
+    });
   });
 
   describe('getHeads', () => {
@@ -508,6 +514,19 @@ describe('KnowledgeGraphManager', () => {
 
       const heads = await kg.getHeads('test-project');
       expect(heads.map((n) => n.id).sort()).toEqual([nodeB.id, nodeC.id].sort());
+    });
+
+    it('respects the limit parameter using recent nodes', async () => {
+      const node1 = createTestNode('test-project');
+      const node2 = createTestNode('test-project');
+      node1.children.push(node2.id);
+      node2.parents = [node1.id];
+
+      await kg.appendEntity(node1);
+      await kg.appendEntity(node2);
+
+      const result = await kg.getHeads('test-project', 1);
+      expect(result.map((n) => n.id)).toEqual([node2.id]);
     });
   });
 

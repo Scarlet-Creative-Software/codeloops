@@ -290,7 +290,10 @@ export class KnowledgeGraphManager {
   }
 
   async resume({ project, limit = 5 }: { project: string; limit?: number }): Promise<DagNode[]> {
-    return this.export({ project, limit });
+    if (limit) {
+      return this.getRecentNodes(project, limit);
+    }
+    return this.export({ project });
   }
 
   async export({
@@ -318,6 +321,58 @@ export class KnowledgeGraphManager {
       rl.close();
       fileStream.close();
     }
+  }
+
+  private async getRecentNodes(project: string, limit: number): Promise<DagNode[]> {
+    const nodes: DagNode[] = [];
+    const fileSize = (await fs.stat(this.logFilePath)).size;
+
+    if (fileSize === 0) return nodes;
+
+    const chunkSize = Math.min(8192, fileSize);
+    let position = fileSize;
+    let buffer = '';
+    let foundNodes = 0;
+
+    while (position > 0 && foundNodes < limit) {
+      const readSize = Math.min(chunkSize, position);
+      position -= readSize;
+
+      const fileHandle = await fs.open(this.logFilePath, 'r');
+      const { buffer: chunk } = await fileHandle.read({
+        buffer: Buffer.alloc(readSize),
+        offset: 0,
+        length: readSize,
+        position,
+      });
+      await fileHandle.close();
+
+      buffer = chunk.toString('utf8') + buffer;
+
+      const lines = buffer.split('\n');
+      buffer = lines.shift() || '';
+
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const node = this.parseDagNode(line);
+        if (node && node.project === project) {
+          nodes.unshift(node);
+          foundNodes++;
+          if (foundNodes >= limit) break;
+        }
+      }
+    }
+
+    if (nodes.length < limit && buffer.trim()) {
+      const node = this.parseDagNode(buffer.trim());
+      if (node && node.project === project) {
+        nodes.unshift(node);
+      }
+    }
+
+    return nodes;
   }
 
   async search({
@@ -355,20 +410,34 @@ export class KnowledgeGraphManager {
     });
   }
 
-  async listOpenTasks(project: string): Promise<DagNode[]> {
+  async listOpenTasks(project: string, limit?: number): Promise<DagNode[]> {
+    const filterFn = (node: DagNode) =>
+      node.role === 'actor' &&
+      node.tags?.includes(Tag.Task) &&
+      !node.tags?.includes(Tag.TaskComplete);
+
+    if (limit) {
+      const recent = await this.getRecentNodes(project, limit);
+      return recent.filter(filterFn);
+    }
+
     return this.export({
       project,
-      filterFn: (node) =>
-        node.role === 'actor' &&
-        node.tags?.includes(Tag.Task) &&
-        !node.tags?.includes(Tag.TaskComplete),
+      filterFn,
     });
   }
 
-  async getHeads(project: string): Promise<DagNode[]> {
+  async getHeads(project: string, limit?: number): Promise<DagNode[]> {
+    const filterFn = (node: DagNode) => node.children.length === 0;
+
+    if (limit) {
+      const recent = await this.getRecentNodes(project, limit);
+      return recent.filter(filterFn);
+    }
+
     return this.export({
       project,
-      filterFn: (node) => node.children.length === 0,
+      filterFn,
     });
   }
 
