@@ -1,7 +1,9 @@
 # Changelog
 
 ## [Unreleased]
+
 - perf: faster resume and list methods with getRecentNodes
+- perf: reuse file handle when reading recent nodes
 
 - fix: cycle detection only traverses children links when validating new parents
 - feat: cache DagNodes in KnowledgeGraphManager with configurable expiration
