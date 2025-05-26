@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: cycle detection only traverses children links when validating new parents
+
 - fix: restore cycle detection and summarization logic for tests
 
 - feat: critic now sends recent history and artifact contents to the Python agent
