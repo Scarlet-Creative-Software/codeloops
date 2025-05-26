@@ -59,7 +59,7 @@ google:
 Set a Gemini model as the default by editing `fastagent.config.yaml`:
 
 ```yaml
-default_model: google.gemini-pro
+default_model: google.gemini-2.5-flash-preview-05-20
 ```
 
 ### Gemini Input Caching
