@@ -142,6 +142,7 @@ When calling `actor_think`, include metadata so future steps can follow the grap
 
 - **`parents`** – IDs of prior nodes this thought builds on.
 - **`diff`** – optional git-style diff summarizing any code changes.
+- When paired with `artifacts`, the critic reads the referenced files to provide richer feedback.
 - **`tags`** – semantic labels used for search. Tags are defined in the
   [`Tag` enum](./src/engine/tags.ts):
   - `Tag.Requirement`

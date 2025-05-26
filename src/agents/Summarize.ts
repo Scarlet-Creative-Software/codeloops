@@ -7,9 +7,6 @@ import { v4 as uuid } from 'uuid';
 import { DagNode, KnowledgeGraphManager, SummaryNode } from '../engine/KnowledgeGraph.ts';
 import { Tag } from '../engine/tags.ts';
 
-// Maximum length for debug output (500 chars - much more reasonable for frequent logging)
-const MAX_DEBUG_LENGTH = 500;
-
 /**
  * SummarizationAgent provides an interface to the Python-based summarization agent.
  * It handles serialization/deserialization of node data and processes the agent's response.
@@ -53,7 +50,9 @@ export class SummarizationAgent {
       const nodesJson = JSON.stringify(nodes);
 
       // Only log essential info, not debug data
-      getLogger().info(`[summarize] Processing ${nodes.length} nodes (${(nodesJson.length / 1024).toFixed(1)}KB)`);
+      getLogger().info(
+        `[summarize] Processing ${nodes.length} nodes (${(nodesJson.length / 1024).toFixed(1)}KB)`,
+      );
 
       // Call the Python agent using execa
       const [execError, output] = await to(
@@ -74,10 +73,11 @@ export class SummarizationAgent {
 
       // Handle stderr output - only log if there's an actual error
       if (output.stderr && output.stderr.length > 0) {
-        const isActualError = output.stderr.includes('Error') || 
-                             output.stderr.includes('Exception') || 
-                             output.stderr.includes('Traceback');
-        
+        const isActualError =
+          output.stderr.includes('Error') ||
+          output.stderr.includes('Exception') ||
+          output.stderr.includes('Traceback');
+
         if (isActualError) {
           getLogger().error({ stderr: output.stderr.slice(0, 200) }, 'Summarization agent error');
         }

@@ -144,6 +144,42 @@ describe('ActorCriticEngine', () => {
     expect(updatedActor?.children).toContain(criticNode.id);
   });
 
+  it('critic review loads history and artifact files when diff is provided', async () => {
+    const fileDir = path.join(testDir, 'proj');
+    await fs.mkdir(fileDir, { recursive: true });
+    await fs.writeFile(path.join(fileDir, 'foo.txt'), 'hello');
+
+    const execaMock = vi.fn().mockResolvedValue({ stdout: '{"verdict":"approved"}', stderr: '' });
+    vi.doMock('execa', () => ({ execa: execaMock }));
+    const { Critic } = await import('../agents/Critic.js');
+    const { node: actorNode } = await new Actor(kg).think({
+      thought: 'changed foo',
+      tags: [Tag.Task],
+      project: 'proj',
+      projectContext: fileDir,
+      diff: 'diff',
+      artifacts: [{ name: 'foo', path: 'foo.txt' }],
+    });
+
+    const resumeSpy = vi.spyOn(kg, 'resume').mockResolvedValue([actorNode]);
+    const readSpy = vi.spyOn(fs, 'readFile');
+
+    const critic = new Critic(kg);
+
+    await critic.review({ actorNodeId: actorNode.id, project: 'proj', projectContext: fileDir });
+
+    expect(resumeSpy).toHaveBeenCalledWith({ project: 'proj', limit: 10 });
+    expect(readSpy).toHaveBeenCalledWith(path.resolve(fileDir, 'foo.txt'), 'utf8');
+
+    const args = execaMock.mock.calls[0][1];
+    const msg = JSON.parse(args[args.indexOf('--message') + 1]);
+    expect(msg.files['foo.txt']).toBe('hello');
+
+    vi.restoreAllMocks();
+    vi.unmock('execa');
+    vi.resetModules();
+  });
+
   it('invokes summarization when threshold met', async () => {
     const originalEnv = process.env.SUMMARIZATION_THRESHOLD;
     process.env.SUMMARIZATION_THRESHOLD = '1';
