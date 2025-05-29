@@ -4,6 +4,7 @@ import { KnowledgeGraphManager, DagNode } from './KnowledgeGraph.js';
 import { Tag } from './tags.js';
 import { getInstance as getLogger } from '../logger.js';
 import { generateObject } from '../utils/genai.js';
+import { KeyMemorySystem } from './KeyMemorySystem.js';
 
 // Schema for structured critic responses
 const CriticResponseSchema = z.object({
@@ -18,6 +19,7 @@ const CriticResponseSchema = z.object({
   ),
   overallAssessment: z.string().describe('Overall assessment of the thought/code'),
   strengths: z.array(z.string()).describe('Positive aspects identified'),
+  storeMemory: z.boolean().optional().describe('Whether to store this review in key memory for future reference'),
 });
 
 export type CriticResponse = z.infer<typeof CriticResponseSchema>;
@@ -49,8 +51,8 @@ const CrossCriticResponseSchema = z.object({
 
 export type CrossCriticResponse = z.infer<typeof CrossCriticResponseSchema>;
 
-// Schema for consensus analysis
-const ConsensusAnalysisSchema = z.object({
+// Schema for consensus analysis (exported for validation)
+export const ConsensusAnalysisSchema = z.object({
   strongConsensus: z.array(
     z.object({
       issue: z.string(),
@@ -88,11 +90,7 @@ const ConsensusAnalysisSchema = z.object({
   ),
 });
 
-// Type is inferred from the schema
-type ConsensusAnalysisType = z.infer<typeof ConsensusAnalysisSchema>;
-
-// Export as interface to avoid lint error
-export interface ConsensusAnalysis extends ConsensusAnalysisType {}
+export type ConsensusAnalysis = z.infer<typeof ConsensusAnalysisSchema>;
 
 interface CriticConfig {
   id: string;
@@ -103,6 +101,7 @@ interface CriticConfig {
 
 export class MultiCriticEngine {
   private logger = getLogger();
+  private keyMemory = new KeyMemorySystem();
   private critics: CriticConfig[] = [
     {
       id: 'correctness',
@@ -161,10 +160,13 @@ Highlight security risks with severity ratings.`,
     project: string;
   }): Promise<DagNode> {
     try {
+      // Increment tool call counter for memory expiration
+      this.keyMemory.onToolCall();
+      
       // 1. Gather context
       const context = await this.gatherContext(actorNodeId);
 
-      // 2. Parallel critic review
+      // 2. Parallel critic review with memory context
       const initialReviews = await this.parallelCriticReview(context);
 
       // 3. Cross-critic comparison
@@ -179,7 +181,10 @@ Highlight security risks with severity ratings.`,
       // 5. Generate final critique
       const finalCritique = await this.generateFinalCritique(context, consensus);
 
-      // 6. Create and store the critic node
+      // 6. Store memories if requested by critics
+      this.storeMemoriesIfRequested(context.actorNode, initialReviews, finalCritique);
+
+      // 7. Create and store the critic node
       const criticNode = await this.createCriticNode({
         actorNodeId,
         project,
@@ -242,7 +247,7 @@ Highlight security risks with severity ratings.`,
         prompt = this.buildCriticPrompt(critic, context);
         
         const response = await generateObject({
-          model: 'gemini-2.0-flash-exp',
+          model: 'gemini-2.5-flash-preview-05-20',
           messages: [{ role: 'user', content: prompt }],
           schema: CriticResponseSchema,
         });
@@ -295,7 +300,7 @@ Highlight security risks with severity ratings.`,
           );
 
           const response = await generateObject({
-            model: 'gemini-2.0-flash-exp',
+            model: 'gemini-2.5-flash-preview-05-20',
             messages: [{ role: 'user', content: prompt }],
             schema: CrossCriticResponseSchema,
           });
@@ -442,7 +447,7 @@ Focus on the most important issues that will improve the code quality.`;
     });
     
     const response = await generateObject({
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash-preview-05-20',
       messages: [{ role: 'user', content: prompt }],
       schema: responseSchema,
     });
@@ -529,6 +534,23 @@ Previous Context: ${previousAttempts || 'none'}`;
     critic: CriticConfig,
     context: Awaited<ReturnType<typeof this.gatherContext>>,
   ): string {
+    // Retrieve relevant memories for this critic
+    const memories = this.keyMemory.getRelevantMemories(
+      critic.id,
+      context.actorNode.artifacts
+    );
+    
+    let memoryContext = '';
+    if (memories.length > 0) {
+      memoryContext = `\n\nRelevant memories from previous reviews:
+${memories.map((m, i) => `
+Memory ${i + 1} (accessed ${m.accessCount} times):
+- Original thought: ${m.thought.substring(0, 200)}...
+- Your previous review: ${m.criticResponse.substring(0, 200)}...
+- Artifacts: ${m.artifacts?.map(a => a.path).join(', ') || 'none'}
+`).join('\n')}`;
+    }
+    
     return `${critic.promptTemplate}
 
 Context:
@@ -541,9 +563,11 @@ ${
   context.actorNode.artifacts && context.actorNode.artifacts.length > 0
     ? `Files affected: ${context.actorNode.artifacts.map((a) => a.path).join(', ')}`
     : ''
-}
+}${memoryContext}
 
-Provide a structured review focusing on ${critic.focus}.`;
+Provide a structured review focusing on ${critic.focus}.
+
+If this review contains important insights that should be remembered for future reviews of similar code, set storeMemory to true.`;
   }
 
   private buildCrossComparisonPrompt(
@@ -575,5 +599,36 @@ Compare your review with the other critics:
 3. Provide your final stance on the key issues
 
 Focus on constructive synthesis rather than defending your position.`;
+  }
+
+  /**
+   * Stores memories for critics that requested it
+   */
+  private storeMemoriesIfRequested(
+    actorNode: DagNode,
+    reviews: Map<string, CriticResponse>,
+    finalCritique: string,
+  ): void {
+    for (const [criticId, review] of reviews.entries()) {
+      if (review.storeMemory === true) {
+        // Store the individual critic's response
+        const criticResponse = `${review.overallAssessment}\n\nKey issues:\n${review.critiques
+          .map(c => `- ${c.issue} (${c.severity}): ${c.suggestion}`)
+          .join('\n')}`;
+        
+        this.keyMemory.storeMemory(criticId, actorNode, criticResponse);
+        
+        this.logger.info(
+          `Stored memory for critic ${criticId} based on review of node ${actorNode.id}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Gets memory statistics for monitoring
+   */
+  getMemoryStats(): Record<string, { count: number; totalAccesses: number; avgLifespan: number }> {
+    return this.keyMemory.getStats();
   }
 }

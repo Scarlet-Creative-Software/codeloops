@@ -69,6 +69,12 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 - `OLLAMA_BASE_URL` - Optional Ollama endpoint
 - `FASTAGENT_BASE_URL` - Optional fast-agent endpoint
 
+### Model Configuration
+
+- **IMPORTANT**: All Gemini API calls use `gemini-2.5-flash-preview-05-20` model
+- This includes MultiCriticEngine, geminiCache, and any generateObject calls
+- Model version is standardized across the codebase per genai-node-reference.md
+
 ## MCP Servers Reference
 
 This section documents all available MCP (Model Context Protocol) servers and their usage.
@@ -238,10 +244,12 @@ For iterative development, planning, and knowledge management in coding tasks.
 - Create monitoring/metrics for consensus rates
 - Documentation for multi-critic feature usage
 
-### Key Memory System (TODO)
+### Key Memory System ✅
 **Purpose**: Enable critics to maintain contextual memory across actor_think calls
 
-**Design**:
+**Status**: COMPLETED
+
+**Features Implemented**:
 1. Each critic can include a `store_memory` field in their response
 2. Each critic maintains up to 10 key memories independently
 3. Memories expire after 10 actor_think calls without being referenced
@@ -249,12 +257,11 @@ For iterative development, planning, and knowledge management in coding tasks.
 5. When memory slots are full, least recently used memories are evicted
 6. Only thought content, artifacts, tags, and critic responses are stored (to conserve tokens)
 
-**Implementation Tasks**:
-- Design memory storage architecture with per-critic isolation
-- Add `store_memory` field to CriticResponseSchema
-- Implement memory expiration and artifact-based retrieval
-- Create LRU eviction when slots are full
-- Add comprehensive unit tests
+**Key Components**:
+- `KeyMemorySystem` class handles all memory operations
+- Integrated into `MultiCriticEngine` with automatic memory context injection
+- Memory statistics available via `getMemoryStats()` method
+- Full unit test coverage (9 tests, all passing)
 
 ## MCP Server Summary
 

@@ -2,12 +2,19 @@ import { GoogleGenAI, type Content } from '@google/genai';
 import { GENAI_THINKING_BUDGET } from '../config.ts';
 import { z } from 'zod';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-if (!GEMINI_API_KEY) {
-  throw new Error('GEMINI_API_KEY environment variable not set');
-}
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 
-const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+let ai: GoogleGenAI | null = null;
+
+function getAI(): GoogleGenAI {
+  if (!ai) {
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY or GOOGLE_GENAI_API_KEY environment variable not set');
+    }
+    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+  }
+  return ai;
+}
 
 function normalize(input: string | Content[]): Content[] {
   return typeof input === 'string' ? [{ role: 'user', parts: [{ text: input }] }] : input;
@@ -21,7 +28,7 @@ export async function generateGeminiContent({
   contents: string | Content[];
 }): Promise<string> {
   const normalized = normalize(contents);
-  const result = await ai.models.generateContent({
+  const result = await getAI().models.generateContent({
     model,
     contents: normalized,
     config: {
@@ -63,7 +70,7 @@ export async function generateObject<T>({
     lastContent.parts[0].text += `\n\nIMPORTANT: Return your response as a valid JSON object only. Do not include any markdown formatting or explanations. The JSON should match ${schemaDesc}.`;
   }
   
-  const result = await ai.models.generateContent({
+  const result = await getAI().models.generateContent({
     model,
     contents,
   });
