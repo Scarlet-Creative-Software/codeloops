@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Source Branch**: This is the Event Horizon fork maintained at https://github.com/Scarlet-Creative-Software/codeloops (dev branch)
+
 ## Commands
 
 ### Development
