@@ -1,23 +1,32 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.0] - 2025-05-29
 
+### Event Horizon Release
+- feat: rebrand as Codeloops Event Horizon with artificial brain focus
 - feat: implement multi-critic consensus system with parallel review capabilities
+  - Three specialized critics: correctness, efficiency, security
+  - Consensus building with confidence-weighted voting
+  - Cross-critic comparison and synthesis
 - feat: add feedback parameter to enable multi-critic reviews via `feedback: true`
-- feat: create MultiCriticEngine with three specialized critics (correctness, efficiency, security)
-- feat: implement consensus building with confidence-weighted voting
-- feat: add generateObject utility for structured AI responses
-- feat: add fallback to single-critic mode when multi-critic fails
+- feat: create MultiCriticEngine with structured response parsing
 - feat: implement key_memory system for critic contextual memory
   - Per-critic memory storage with 10-slot limit
   - Automatic expiration after 10 unused tool calls
   - Artifact-based memory retrieval and lifespan extension
   - LRU eviction when memory slots are full
+  - Memory statistics tracking via getMemoryStats()
+- feat: add generateObject utility for structured AI responses with Zod validation
+- feat: add getZodExample helper for improved JSON parsing reliability
+- feat: add fallback to single-critic mode when multi-critic fails
+- fix: improve JSON parsing reliability for multi-critic responses
 - fix: standardize all Gemini API calls to use `gemini-2.5-flash-preview-05-20` model
 - test: add comprehensive unit tests for multi-critic system
 - test: add unit tests for key_memory system with 100% coverage
 - test: verify sustainable log growth (1.5x increase with multi-critic)
 - perf: multi-critic runs in ~13s (1.4x slower than single critic)
+- docs: complete README rewrite focusing on artificial brain architecture
+- docs: add multi-critic test results documentation
 
 - feat: make summarization threshold configurable via `SUMMARIZATION_THRESHOLD` env var
 

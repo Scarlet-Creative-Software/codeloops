@@ -65,10 +65,11 @@ Event Horizon augments any AI model with cognitive-like capabilities:
 
 ```bash
 # Clone the Event Horizon fork
-git clone https://github.com/matthewamann/codeloops.git
+git clone https://github.com/Scarlet-Creative-Software/codeloops.git
 cd codeloops
 
-# Run the setup script
+# Install dependencies and run setup
+npm install
 npm run setup
 
 # Configure your API key (Gemini 2.5 Flash Preview recommended)
@@ -192,8 +193,8 @@ By combining actor-critic reinforcement learning with consensus-based decision m
 This is an experimental fork exploring advanced AI augmentation techniques. 
 
 - Original CodeLoops: [github.com/silvabyte/codeloops](https://github.com/silvabyte/codeloops)
-- Event Horizon Fork: [github.com/matthewamann/codeloops](https://github.com/matthewamann/codeloops)
-- Issues: [GitHub Issues](https://github.com/matthewamann/codeloops/issues)
+- Event Horizon Fork: [github.com/Scarlet-Creative-Software/codeloops](https://github.com/Scarlet-Creative-Software/codeloops)
+- Issues: [GitHub Issues](https://github.com/Scarlet-Creative-Software/codeloops/issues)
 
 ## License
 

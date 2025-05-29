@@ -197,73 +197,46 @@ For iterative development, planning, and knowledge management in coding tasks.
 - Prefer `puppeteer_evaluate` to extract DOM text; call `puppeteer_screenshot` only when visual confirmation is essential.
 - Reserve puppeteer for situations where simpler tools (`fetch` or `markdown-downloader`) cannot access the necessary data.
 
-## Current Task Status
+## Event Horizon Features
 
-### Multi-Critic Consensus System Implementation
-**Status**: In Progress
-
-**Completed**:
-1. ✅ Fixed existing test failures in KnowledgeGraph.test.ts and ActorCriticEngine.test.ts
-2. ✅ Added feedback parameter to ActorThinkSchema 
-3. ✅ Created MultiCriticEngine class with:
-   - Parallel critic invocation
-   - Context gathering module
-   - Three specialized critic prompts (correctness, efficiency, security)
-   - Cross-critic comparison logic
-   - Consensus building algorithm
-   - Final synthesis module
-   - Structured response parsing
-   - Fallback to single-critic mode on failure
-4. ✅ Integrated MultiCriticEngine into ActorCriticEngine
-
-**Current Status**:
-✅ MULTI-CRITIC SYSTEM FULLY IMPLEMENTED AND TESTED!
-- Fixed all import paths to use .js extensions
-- generateObject function implemented and working
-- DagNode already has metadata field
-- All unit tests for MultiCriticEngine are passing
-- Integration with ActorCriticEngine is complete
-- Tested feedback:true feature with real scenarios
-
-**Test Results**:
-- Single critic: 9.64s, 5.23 KB log growth
-- Multi-critic: 13.38s, 7.72 KB log growth  
-- Multi-critic is 1.4x slower and generates 1.5x more log data
-- Log file growth is sustainable (current: 10.22 MB)
-- Fallback to single critic works when multi-critic fails
-
-**Next Steps**:
-1. Add integration tests with real coding scenarios
-2. Performance testing to ensure <30s response time
-3. Add configuration schema for multi-critic settings
-4. Create monitoring/metrics for consensus rates
-5. Documentation for multi-critic feature usage
-
-**Pending Tasks**:
-- Re-enable cycle detection in KnowledgeGraph
-- Fix summarization functionality
-- Add configuration schema for multi-critic settings
-- Create monitoring/metrics for consensus rates
-- Documentation for multi-critic feature usage
-
-### Key Memory System ✅
-**Purpose**: Enable critics to maintain contextual memory across actor_think calls
-
+### Multi-Critic Consensus System ✅
 **Status**: COMPLETED
 
-**Features Implemented**:
-1. Each critic can include a `store_memory` field in their response
-2. Each critic maintains up to 10 key memories independently
-3. Memories expire after 10 actor_think calls without being referenced
-4. When artifacts match stored memories, those memories are retrieved and their lifespan incremented by 1 (max 10)
-5. When memory slots are full, least recently used memories are evicted
-6. Only thought content, artifacts, tags, and critic responses are stored (to conserve tokens)
+The multi-critic consensus system provides parallel review by three specialized critics when using `feedback:true`:
 
-**Key Components**:
-- `KeyMemorySystem` class handles all memory operations
-- Integrated into `MultiCriticEngine` with automatic memory context injection
-- Memory statistics available via `getMemoryStats()` method
-- Full unit test coverage (9 tests, all passing)
+**Critics**:
+1. **Correctness Critic**: Logical consistency, edge cases, algorithm accuracy
+2. **Efficiency Critic**: Performance, maintainability, best practices  
+3. **Security Critic**: Vulnerabilities, input validation, defensive programming
+
+**Features**:
+- Parallel critic invocation for faster reviews
+- Cross-critic comparison and debate
+- Consensus building with confidence-weighted voting
+- Structured response parsing with Zod validation
+- Graceful fallback to single-critic on failure
+
+**Performance**:
+- Multi-critic: ~13.38s (within 30s target)
+- Single-critic: ~9.64s
+- Log growth: 1.5x increase (sustainable)
+
+### Key Memory System ✅
+**Status**: COMPLETED
+
+Critics maintain contextual memory across actor_think calls:
+
+**Features**:
+- Each critic stores up to 10 key memories
+- Memories expire after 10 unused tool calls
+- Artifact-based retrieval with automatic lifespan extension
+- LRU eviction when memory slots are full
+- Memory statistics via `getMemoryStats()`
+
+**Implementation**:
+- `KeyMemorySystem` class in `src/engine/KeyMemorySystem.ts`
+- Integrated into `MultiCriticEngine`
+- Full unit test coverage (9 tests passing)
 
 ## MCP Server Summary
 
