@@ -63,6 +63,8 @@ Event Horizon augments any AI model with cognitive-like capabilities:
 
 ## Quick Setup
 
+### For Global Installation (Shared Across Projects)
+
 ```bash
 # Clone the Event Horizon fork
 git clone https://github.com/Scarlet-Creative-Software/codeloops.git
@@ -74,6 +76,32 @@ npm run setup
 
 # Configure your API key (Gemini 2.5 Flash Preview recommended)
 export GOOGLE_GENAI_API_KEY=your-api-key
+```
+
+### For Project-Specific Installation (Recommended)
+
+```bash
+# In your project directory
+git submodule add https://github.com/Scarlet-Creative-Software/codeloops.git codeloops
+cd codeloops
+npm install
+npm run setup
+cd ..
+
+# Create .mcp.json with relative path
+cat > .mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "codeloops": {
+      "command": "npx",
+      "args": ["tsx", "./codeloops/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+EOF
 ```
 
 ## Configuration
@@ -106,19 +134,40 @@ Event Horizon is optimized for Google's Gemini models. All components use `gemin
 
 ### MCP Server Configuration
 
-Connect your AI coding agent (Cursor, Windsurf, etc.) by adding:
+Connect your AI coding agent to Codeloops. Create a `.mcp.json` file in your project root:
 
+#### Option 1: Global Installation
 ```json
-"mcp": {
-  "servers": {
+{
+  "mcpServers": {
     "codeloops": {
-      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "tsx", "/path/to/codeloops/src"]
+      "args": ["-y", "tsx", "/path/to/codeloops/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "your-api-key",
+        "CODELOOPS_DATA_DIR": "./codeloops-data"
+      }
     }
   }
 }
 ```
+
+#### Option 2: Project Submodule (Recommended)
+```json
+{
+  "mcpServers": {
+    "codeloops": {
+      "command": "npx",
+      "args": ["tsx", "./codeloops/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
+
+**Important**: Always restart Claude Code after modifying `.mcp.json`.
 
 ## Using the Artificial Brain
 
@@ -182,6 +231,31 @@ The Event Horizon system provides 10 powerful MCP tools:
 - **Context**: Memories persist across 10 tool calls, extending with use
 - **Reliability**: Improved JSON parsing with structured prompts and graceful error handling
 - **Log Growth**: ~1.5x more data than single-critic (8.75 KB for complex reviews)
+
+## Troubleshooting
+
+### Common Issue: "Cannot read properties of undefined"
+
+If you encounter this error when using `actor_think`, it's likely due to multiple server instances:
+
+```bash
+# Kill all running codeloops processes
+pkill -f "tsx.*codeloops/src"
+
+# Clear npx cache
+rm -rf ~/.npm/_npx/
+
+# Restart Claude Code
+```
+
+### Multiple Project Support
+
+Codeloops now supports multiple projects through:
+- **Git Submodules**: Each project has its own codeloops instance
+- **Custom Data Directory**: Use `CODELOOPS_DATA_DIR` environment variable
+- **Project Isolation**: Data is stored per-project, not globally
+
+See [docs/INSTALLATION_GUIDE.md](./docs/INSTALLATION_GUIDE.md) for detailed setup instructions.
 
 ## The Mission
 

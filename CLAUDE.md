@@ -70,6 +70,7 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 - `GOOGLE_GENAI_API_KEY` - Required for Google AI integration
 - `OLLAMA_BASE_URL` - Optional Ollama endpoint
 - `FASTAGENT_BASE_URL` - Optional fast-agent endpoint
+- `CODELOOPS_DATA_DIR` - Optional custom data directory (default: `./data` relative to codeloops installation)
 
 ### Model Configuration
 
@@ -294,3 +295,73 @@ npx @playwright/mcp@latest
 # Fetch MCP
 claude mcp add fetch uvx mcp-server-fetch
 ```
+
+### Troubleshooting Codeloops MCP
+
+If the codeloops MCP server crashes with `Cannot read properties of undefined` when calling `actor_think`:
+
+1. **Check for multiple server instances** - Kill all running codeloops processes:
+   ```bash
+   pkill -f "tsx.*codeloops/src"
+   ```
+
+2. **Clear npx cache** if using codeloops from other projects:
+   ```bash
+   rm -rf ~/.npm/_npx/
+   ```
+
+3. **Configure the MCP server properly** in your `.mcp.json`:
+   
+   **Option A: For External Projects** (using absolute path):
+   ```json
+   {
+     "mcpServers": {
+       "codeloops": {
+         "command": "npx",
+         "args": ["-y", "tsx", "/Users/matthewamann/codeloops/src"],
+         "env": {
+           "GOOGLE_GENAI_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+   
+   **Option B: For Local Installation** (when codeloops is in your project):
+   ```json
+   {
+     "mcpServers": {
+       "codeloops": {
+         "command": "npx",
+         "args": ["tsx", "./codeloops/src"],
+         "env": {
+           "GOOGLE_GENAI_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+   
+   **Option C: Published NPM Package** (future):
+   ```json
+   {
+     "mcpServers": {
+       "codeloops": {
+         "command": "npx",
+         "args": ["-y", "@codeloops/mcp-server"],
+         "env": {
+           "GOOGLE_GENAI_API_KEY": "your-api-key-here"
+         }
+       }
+     }
+   }
+   ```
+
+4. **Restart Claude Code** after making configuration changes
+
+5. **Verify dependencies** are installed in the codeloops directory:
+   ```bash
+   cd /Users/matthewamann/codeloops
+   npm install
+   npm run setup
+   ```

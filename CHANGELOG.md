@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.1] - 2025-05-29
+
+### Multi-Project Support & Installation Improvements
+- feat: add configurable data directory via `CODELOOPS_DATA_DIR` environment variable
+- feat: add support for git submodule installation method
+- feat: add comprehensive installation guide for different deployment scenarios
+- fix: resolve multi-server instance conflicts causing "Cannot read properties of undefined" errors
+- docs: add troubleshooting guide for common MCP server issues
+- docs: update README with multiple installation options (global, submodule, local)
+- docs: update CLAUDE.md with troubleshooting steps for MCP server crashes
+- docs: create INSTALLATION_GUIDE.md with detailed setup instructions
+- docs: create TROUBLESHOOTING_MCP.md for debugging server issues
+
 ## [0.4.0] - 2025-05-29
 
 ### Event Horizon Release

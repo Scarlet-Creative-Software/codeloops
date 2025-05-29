@@ -7,7 +7,12 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-export const dataDir = path.resolve(__dirname, '..', 'data');
+
+// Allow overriding data directory via environment variable
+// This enables project-specific data storage when using codeloops globally
+export const dataDir = process.env.CODELOOPS_DATA_DIR 
+  ? path.resolve(process.cwd(), process.env.CODELOOPS_DATA_DIR)
+  : path.resolve(__dirname, '..', 'data');
 
 // -----------------------------------------------------------------------------
 // Gemini Configuration --------------------------------------------------------
