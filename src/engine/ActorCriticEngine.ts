@@ -2,6 +2,7 @@ import { Critic } from '../agents/Critic.ts';
 import { Actor } from '../agents/Actor.ts';
 import { KnowledgeGraphManager, type DagNode, FILE_REF } from './KnowledgeGraph.ts';
 import { SummarizationAgent } from '../agents/Summarize.ts';
+import { MultiCriticEngine } from './MultiCriticEngine.ts';
 import { z } from 'zod';
 import { TagEnum } from './tags.ts';
 // -----------------------------------------------------------------------------
@@ -51,18 +52,31 @@ export const ActorThinkSchema = {
         'verify coverage before code is written.' +
         'graph has durable pointers to the exact revision.',
     ),
+
+  /** Optional flag to enable enhanced multi-critic consensus review */
+  feedback: z
+    .boolean()
+    .optional()
+    .describe(
+      'When true, triggers a comprehensive 3-critic consensus review with specialized analysis. ' +
+        'Use for complex tasks requiring deeper validation. Default: false.',
+    ),
 };
 
 export const ActorThinkSchemaZodObject = z.object(ActorThinkSchema);
 export type ActorThinkInput = z.infer<typeof ActorThinkSchemaZodObject>;
 
 export class ActorCriticEngine {
+  private multiCriticEngine: MultiCriticEngine;
+
   constructor(
     private readonly kg: KnowledgeGraphManager,
     private readonly critic: Critic,
     private readonly actor: Actor,
     private readonly summarizationAgent: SummarizationAgent,
-  ) {}
+  ) {
+    this.multiCriticEngine = new MultiCriticEngine(kg);
+  }
 
   // Use the centralized extractProjectName function from utils
   /* --------------------------- public API --------------------------- */
@@ -77,6 +91,22 @@ export class ActorCriticEngine {
     // Actor.think will handle project switching based on projectContext
     const { node } = await this.actor.think(input);
 
+    // Check if enhanced multi-critic feedback is requested
+    if (input.feedback === true) {
+      try {
+        const criticNode = await this.multiCriticEngine.performMultiCriticReview({
+          actorNodeId: node.id,
+          projectContext: input.projectContext,
+          project: input.project,
+        });
+        return criticNode;
+      } catch (error) {
+        // Fall back to single critic on failure
+        console.error('Multi-critic review failed, falling back to single critic:', error);
+      }
+    }
+
+    // Default single critic review
     const criticNode = await this.criticReview({
       actorNodeId: node.id,
       projectContext: input.projectContext,
@@ -112,11 +142,12 @@ export class ActorCriticEngine {
   }): Promise<DagNode> {
     const criticNode = await this.critic.review({ actorNodeId, projectContext, project });
 
-    // Trigger summarization check after adding a critic node
-    await this.summarizationAgent.checkAndTriggerSummarization({
-      project,
-      projectContext,
-    });
+    // Temporarily disable automatic summarization to prevent performance issues
+    // TODO: Re-enable once the core exponential growth issue is resolved
+    // await this.summarizationAgent.checkAndTriggerSummarization({
+    //   project,
+    //   projectContext,
+    // });
 
     return criticNode;
   }

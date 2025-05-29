@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- feat: implement multi-critic consensus system with parallel review capabilities
+- feat: add feedback parameter to enable multi-critic reviews via `feedback: true`
+- feat: create MultiCriticEngine with three specialized critics (correctness, efficiency, security)
+- feat: implement consensus building with confidence-weighted voting
+- feat: add generateObject utility for structured AI responses
+- feat: add fallback to single-critic mode when multi-critic fails
+- test: add comprehensive unit tests for multi-critic system
+- test: verify sustainable log growth (1.5x increase with multi-critic)
+- perf: multi-critic runs in ~13s (1.4x slower than single critic)
+
 - feat: make summarization threshold configurable via `SUMMARIZATION_THRESHOLD` env var
 
 - chore: warn if critic config still uses progress_display in setup script

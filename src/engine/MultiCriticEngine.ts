@@ -1,0 +1,579 @@
+import { z } from 'zod';
+import { v4 as uuid } from 'uuid';
+import { KnowledgeGraphManager, DagNode } from './KnowledgeGraph.js';
+import { Tag } from './tags.js';
+import { getInstance as getLogger } from '../logger.js';
+import { generateObject } from '../utils/genai.js';
+
+// Schema for structured critic responses
+const CriticResponseSchema = z.object({
+  critiques: z.array(
+    z.object({
+      issue: z.string().describe('Description of the issue identified'),
+      severity: z.enum(['low', 'medium', 'high', 'critical']).describe('Severity of the issue'),
+      confidence: z.number().min(0).max(1).describe('Confidence score (0-1) for this critique point'),
+      suggestion: z.string().describe('Specific improvement suggestion'),
+      codeExample: z.string().optional().describe('Code example if applicable'),
+    }),
+  ),
+  overallAssessment: z.string().describe('Overall assessment of the thought/code'),
+  strengths: z.array(z.string()).describe('Positive aspects identified'),
+});
+
+export type CriticResponse = z.infer<typeof CriticResponseSchema>;
+
+// Schema for cross-critic comparison responses
+const CrossCriticResponseSchema = z.object({
+  agreements: z.array(
+    z.object({
+      issue: z.string(),
+      criticsAgreeing: z.array(z.string()),
+      strengthOfAgreement: z.number().min(0).max(1),
+    }),
+  ),
+  disagreements: z.array(
+    z.object({
+      issue: z.string(),
+      positions: z.array(
+        z.object({
+          criticId: z.string(),
+          stance: z.string(),
+          rationale: z.string(),
+        }),
+      ),
+    }),
+  ),
+  revisedConfidences: z.record(z.string(), z.number()),
+  finalStance: z.string(),
+});
+
+export type CrossCriticResponse = z.infer<typeof CrossCriticResponseSchema>;
+
+// Schema for consensus analysis
+const ConsensusAnalysisSchema = z.object({
+  strongConsensus: z.array(
+    z.object({
+      issue: z.string(),
+      agreement: z.literal('unanimous'),
+      confidence: z.number(),
+    }),
+  ),
+  majorityConsensus: z.array(
+    z.object({
+      issue: z.string(),
+      agreement: z.literal('majority'),
+      confidence: z.number(),
+      dissenting: z.array(z.string()),
+    }),
+  ),
+  disputed: z.array(
+    z.object({
+      issue: z.string(),
+      positions: z.array(
+        z.object({
+          stance: z.string(),
+          supporters: z.array(z.string()),
+          weightedScore: z.number(),
+        }),
+      ),
+    }),
+  ),
+  minorityOpinions: z.array(
+    z.object({
+      issue: z.string(),
+      criticId: z.string(),
+      confidence: z.number(),
+      rationale: z.string(),
+    }),
+  ),
+});
+
+// Type is inferred from the schema
+type ConsensusAnalysisType = z.infer<typeof ConsensusAnalysisSchema>;
+
+// Export as interface to avoid lint error
+export interface ConsensusAnalysis extends ConsensusAnalysisType {}
+
+interface CriticConfig {
+  id: string;
+  name: string;
+  focus: string;
+  promptTemplate: string;
+}
+
+export class MultiCriticEngine {
+  private logger = getLogger();
+  private critics: CriticConfig[] = [
+    {
+      id: 'correctness',
+      name: 'Functional Correctness & Logic Critic',
+      focus: 'logical consistency, edge cases, algorithm accuracy, error handling',
+      promptTemplate: `You are a specialized code correctness critic. Analyze the provided thought and code artifacts for:
+1. Logical errors and inconsistencies
+2. Missing edge cases or boundary conditions
+3. Incorrect algorithm implementations
+4. Inadequate error handling
+5. Violations of stated requirements
+
+Consider the execution context and previous attempts when available.
+Be specific and provide code examples where applicable.`,
+    },
+    {
+      id: 'efficiency',
+      name: 'Code Quality & Efficiency Critic',
+      focus: 'performance, maintainability, best practices, resource usage',
+      promptTemplate: `You are a specialized code efficiency critic. Evaluate the provided thought and code artifacts for:
+1. Algorithmic complexity and optimization opportunities
+2. Code reusability and maintainability
+3. Adherence to language-specific best practices
+4. Memory and computational efficiency
+5. Code organization and readability
+
+Identify specific inefficiencies and suggest improvements.`,
+    },
+    {
+      id: 'security',
+      name: 'Security & Robustness Critic',
+      focus: 'security vulnerabilities, input validation, defensive programming',
+      promptTemplate: `You are a specialized security critic. Examine the provided thought and code artifacts for:
+1. Security vulnerabilities (injection, XSS, etc.)
+2. Missing input validation or sanitization
+3. Unsafe operations or practices
+4. Potential attack vectors
+5. Data exposure risks
+
+Highlight security risks with severity ratings.`,
+    },
+  ];
+
+  constructor(private readonly kg: KnowledgeGraphManager) {}
+
+  /**
+   * Performs the full multi-critic consensus review process
+   */
+  async performMultiCriticReview({
+    actorNodeId,
+    projectContext,
+    project,
+  }: {
+    actorNodeId: string;
+    projectContext: string;
+    project: string;
+  }): Promise<DagNode> {
+    try {
+      // 1. Gather context
+      const context = await this.gatherContext(actorNodeId);
+
+      // 2. Parallel critic review
+      const initialReviews = await this.parallelCriticReview(context);
+
+      // 3. Cross-critic comparison
+      const crossComparisons = await this.crossCriticComparison(
+        context,
+        initialReviews,
+      );
+
+      // 4. Build consensus
+      const consensus = await this.buildConsensus(initialReviews, crossComparisons);
+
+      // 5. Generate final critique
+      const finalCritique = await this.generateFinalCritique(context, consensus);
+
+      // 6. Create and store the critic node
+      const criticNode = await this.createCriticNode({
+        actorNodeId,
+        project,
+        projectContext,
+        critique: finalCritique,
+        consensus,
+      });
+
+      return criticNode;
+    } catch (error) {
+      this.logger.error({ error, actorNodeId }, 'Multi-critic review failed, falling back to single critic');
+      throw error; // Let the caller handle fallback
+    }
+  }
+
+  /**
+   * Gathers all necessary context for the critics
+   */
+  private async gatherContext(
+    actorNodeId: string,
+  ): Promise<{
+    actorNode: DagNode;
+    artifactContents: Map<string, string>;
+    relatedNodes: DagNode[];
+    executionContext: string;
+  }> {
+    const actorNode = await this.kg.getNode(actorNodeId);
+    if (!actorNode) {
+      throw new Error(`Actor node ${actorNodeId} not found`);
+    }
+
+    // TODO: Implement artifact content loading
+    const artifactContents = new Map<string, string>();
+
+    // Get related nodes for context
+    const relatedNodes = await this.kg.getNeighbors(actorNodeId, 2);
+
+    // Build execution context
+    const executionContext = this.buildExecutionContext(actorNode, relatedNodes);
+
+    return {
+      actorNode,
+      artifactContents,
+      relatedNodes,
+      executionContext,
+    };
+  }
+
+  /**
+   * Runs all critics in parallel
+   */
+  private async parallelCriticReview(
+    context: Awaited<ReturnType<typeof this.gatherContext>>,
+  ): Promise<Map<string, CriticResponse>> {
+    const reviews = new Map<string, CriticResponse>();
+
+    const reviewPromises = this.critics.map(async (critic) => {
+      let prompt = '';
+      try {
+        prompt = this.buildCriticPrompt(critic, context);
+        
+        const response = await generateObject({
+          model: 'gemini-2.0-flash-exp',
+          messages: [{ role: 'user', content: prompt }],
+          schema: CriticResponseSchema,
+        });
+
+        reviews.set(critic.id, response);
+      } catch (error) {
+        this.logger.error({ 
+          error: error instanceof Error ? { 
+            name: error.name, 
+            message: error.message,
+            stack: error.stack?.split('\n').slice(0, 3).join('\n')
+          } : error, 
+          criticId: critic.id,
+          promptPreview: prompt.substring(0, 200) + '...'
+        }, 'Critic review failed');
+        // Continue with other critics even if one fails
+      }
+    });
+
+    await Promise.all(reviewPromises);
+
+    if (reviews.size === 0) {
+      throw new Error('All critics failed to provide reviews');
+    }
+
+    return reviews;
+  }
+
+  /**
+   * Performs cross-critic comparison
+   */
+  private async crossCriticComparison(
+    context: Awaited<ReturnType<typeof this.gatherContext>>,
+    initialReviews: Map<string, CriticResponse>,
+  ): Promise<Map<string, CrossCriticResponse>> {
+    const comparisons = new Map<string, CrossCriticResponse>();
+
+    const comparisonPromises = Array.from(initialReviews.entries()).map(
+      async ([criticId, ownReview]) => {
+        try {
+          const otherReviews = Array.from(initialReviews.entries())
+            .filter(([id]) => id !== criticId)
+            .map(([id, review]) => ({ criticId: id, review }));
+
+          const prompt = this.buildCrossComparisonPrompt(
+            criticId,
+            ownReview,
+            otherReviews,
+            context,
+          );
+
+          const response = await generateObject({
+            model: 'gemini-2.0-flash-exp',
+            messages: [{ role: 'user', content: prompt }],
+            schema: CrossCriticResponseSchema,
+          });
+
+          comparisons.set(criticId, response);
+        } catch (error) {
+          this.logger.error({ error, criticId }, 'Cross-critic comparison failed');
+        }
+      },
+    );
+
+    await Promise.all(comparisonPromises);
+
+    return comparisons;
+  }
+
+  /**
+   * Builds consensus from critic reviews and cross-comparisons
+   */
+  private async buildConsensus(
+    initialReviews: Map<string, CriticResponse>,
+    crossComparisons: Map<string, CrossCriticResponse>,
+  ): Promise<ConsensusAnalysis> {
+    // Extract all unique issues from all critics
+    const allIssues = new Map<string, {
+      critics: Set<string>;
+      confidences: Map<string, number>;
+      severity: Map<string, string>;
+    }>();
+
+    // Process initial reviews
+    initialReviews.forEach((review, criticId) => {
+      review.critiques.forEach((critique) => {
+        const issueKey = critique.issue;
+        if (!allIssues.has(issueKey)) {
+          allIssues.set(issueKey, {
+            critics: new Set(),
+            confidences: new Map(),
+            severity: new Map(),
+          });
+        }
+        const issue = allIssues.get(issueKey)!;
+        issue.critics.add(criticId);
+        issue.confidences.set(criticId, critique.confidence);
+        issue.severity.set(criticId, critique.severity);
+      });
+    });
+
+    // Update confidences based on cross-comparisons
+    crossComparisons.forEach((comparison, criticId) => {
+      Object.entries(comparison.revisedConfidences).forEach(([issue, confidence]) => {
+        const issueData = allIssues.get(issue);
+        if (issueData) {
+          issueData.confidences.set(criticId, confidence);
+        }
+      });
+    });
+
+    // Build consensus categories
+    const strongConsensus: ConsensusAnalysis['strongConsensus'] = [];
+    const majorityConsensus: ConsensusAnalysis['majorityConsensus'] = [];
+    const disputed: ConsensusAnalysis['disputed'] = [];
+    const minorityOpinions: ConsensusAnalysis['minorityOpinions'] = [];
+
+    allIssues.forEach((issueData, issue) => {
+      const criticsCount = issueData.critics.size;
+      const totalCritics = this.critics.length;
+      const avgConfidence = Array.from(issueData.confidences.values()).reduce(
+        (sum, conf) => sum + conf,
+        0,
+      ) / criticsCount;
+
+      if (criticsCount === totalCritics) {
+        // Unanimous agreement
+        strongConsensus.push({
+          issue,
+          agreement: 'unanimous',
+          confidence: avgConfidence,
+        });
+      } else if (criticsCount >= Math.ceil(totalCritics * 0.66)) {
+        // Majority agreement
+        const dissenting = this.critics
+          .filter((c) => !issueData.critics.has(c.id))
+          .map((c) => c.id);
+        majorityConsensus.push({
+          issue,
+          agreement: 'majority',
+          confidence: avgConfidence,
+          dissenting,
+        });
+      } else if (criticsCount === 1 && avgConfidence > 0.7) {
+        // High-confidence minority opinion
+        const criticId = Array.from(issueData.critics)[0];
+        minorityOpinions.push({
+          issue,
+          criticId,
+          confidence: avgConfidence,
+          rationale: 'High-confidence issue identified by single critic',
+        });
+      }
+    });
+
+    return {
+      strongConsensus,
+      majorityConsensus,
+      disputed,
+      minorityOpinions,
+    };
+  }
+
+  /**
+   * Generates the final synthesized critique
+   */
+  private async generateFinalCritique(
+    context: Awaited<ReturnType<typeof this.gatherContext>>,
+    consensus: ConsensusAnalysis,
+  ): Promise<string> {
+    const prompt = `You are synthesizing the results of a multi-critic review. 
+    
+Original thought: ${context.actorNode.thought}
+
+Consensus Analysis:
+${JSON.stringify(consensus, null, 2)}
+
+Generate a concise, actionable critique that:
+1. Prioritizes issues by consensus strength and severity
+2. Provides specific improvement suggestions
+3. Acknowledges areas of disagreement when relevant
+4. Maintains a constructive tone
+
+Focus on the most important issues that will improve the code quality.`;
+
+    const responseSchema = z.object({
+      summary: z.string().describe('Executive summary of the critique'),
+      prioritizedIssues: z.array(
+        z.object({
+          issue: z.string(),
+          severity: z.string(),
+          consensusLevel: z.string(),
+          recommendation: z.string(),
+        }),
+      ),
+      conclusion: z.string().describe('Overall recommendation'),
+    });
+    
+    const response = await generateObject({
+      model: 'gemini-2.0-flash-exp',
+      messages: [{ role: 'user', content: prompt }],
+      schema: responseSchema,
+    });
+
+    return `## Multi-Critic Consensus Review
+
+### Summary
+${response.summary}
+
+### Prioritized Issues
+${response.prioritizedIssues
+  .map(
+    (issue, i) => `
+${i + 1}. **${issue.issue}** (${issue.severity}, ${issue.consensusLevel})
+   - ${issue.recommendation}`,
+  )
+  .join('\n')}
+
+### Conclusion
+${response.conclusion}`;
+  }
+
+  /**
+   * Creates and stores the critic node in the knowledge graph
+   */
+  private async createCriticNode({
+    actorNodeId,
+    project,
+    projectContext,
+    critique,
+    consensus,
+  }: {
+    actorNodeId: string;
+    project: string;
+    projectContext: string;
+    critique: string;
+    consensus: ConsensusAnalysis;
+  }): Promise<DagNode> {
+    const criticNode: DagNode = {
+      id: uuid(),
+      project,
+      projectContext,
+      thought: critique,
+      role: 'critic',
+      parents: [actorNodeId],
+      children: [],
+      createdAt: new Date().toISOString(),
+      tags: [Tag.Design], // Critics provide design feedback
+      artifacts: [],
+      metadata: {
+        consensusAnalysis: consensus,
+        multiCritic: true,
+        criticsInvolved: this.critics.length,
+      },
+    };
+
+    await this.kg.appendEntity(criticNode);
+
+    // Update actor node to include critic as child
+    const actorNode = await this.kg.getNode(actorNodeId);
+    if (actorNode) {
+      actorNode.children.push(criticNode.id);
+      await this.kg.appendEntity(actorNode);
+    }
+
+    return criticNode;
+  }
+
+  // Helper methods
+
+  private buildExecutionContext(actorNode: DagNode, relatedNodes: DagNode[]): string {
+    const previousAttempts = relatedNodes
+      .filter((n) => n.role === 'actor' && n.tags?.includes(Tag.Task))
+      .map((n) => n.thought)
+      .join('\n');
+
+    return `Project: ${actorNode.project}
+Current Task: ${actorNode.thought}
+Tags: ${actorNode.tags?.join(', ') || 'none'}
+Previous Context: ${previousAttempts || 'none'}`;
+  }
+
+  private buildCriticPrompt(
+    critic: CriticConfig,
+    context: Awaited<ReturnType<typeof this.gatherContext>>,
+  ): string {
+    return `${critic.promptTemplate}
+
+Context:
+${context.executionContext}
+
+Thought to review:
+${context.actorNode.thought}
+
+${
+  context.actorNode.artifacts && context.actorNode.artifacts.length > 0
+    ? `Files affected: ${context.actorNode.artifacts.map((a) => a.path).join(', ')}`
+    : ''
+}
+
+Provide a structured review focusing on ${critic.focus}.`;
+  }
+
+  private buildCrossComparisonPrompt(
+    criticId: string,
+    ownReview: CriticResponse,
+    otherReviews: Array<{ criticId: string; review: CriticResponse }>,
+    context: Awaited<ReturnType<typeof this.gatherContext>>,
+  ): string {
+    const critic = this.critics.find((c) => c.id === criticId)!;
+    
+    return `You are the ${critic.name}. You have reviewed a thought and provided your initial critique.
+
+Your initial critique:
+${JSON.stringify(ownReview, null, 2)}
+
+Other critics' reviews:
+${otherReviews
+  .map(({ criticId, review }) => `
+${criticId} critic:
+${JSON.stringify(review, null, 2)}`)
+  .join('\n\n')}
+
+Original context:
+${context.executionContext}
+
+Compare your review with the other critics:
+1. Identify points of agreement and disagreement
+2. Revise your confidence scores based on the other perspectives
+3. Provide your final stance on the key issues
+
+Focus on constructive synthesis rather than defending your position.`;
+  }
+}
