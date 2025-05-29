@@ -81,37 +81,36 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 
 This section documents all available MCP (Model Context Protocol) servers and their usage.
 
-### CodeLoops – (Always invoke when starting a task)  
+**Codeloops** – (Always invoke when starting a task)  
 For iterative development, planning, and knowledge management in coding tasks.
-- `actor_think(text, tags, artifacts, parents?, diff?)`  
+- `actor_think(text, tags, artifacts, projectContext, parents?, diff?, feedback?)`  
   • Add a new thought, plan, design, requirement, etc., to the knowledge graph.  
   • **tags** — include **at least one** **Tag** enum value:
     `[Tag.Requirement, Tag.Task, Tag.Design, Tag.Risk, Tag.TaskComplete, Tag.Summary]`  
   • **artifacts** — pass an array of inline objects:  
     `{ "name": "<filename.ext>", "content": "<full or stub file contents>" }`  
+  • **feedback** — set to `true` to enable multi-critic consensus review (3 parallel critics)
   • **payload hygiene** — to avoid parser errors:  
     1. Keep each `text` ≤ 600 words; split very long analyses across multiple calls.  
     2. Attach code via `artifacts`; do **not** embed triple back-ticks inside the JSON.  
     3. Ensure `text` starts with a plain quote (`"`), with no leading backslashes or whitespace.  
   • Auto-critic feedback runs automatically; use `critic_review(node_id)` only for a manual re-audit.
-- `critic_review(node_id)` — manually re-run the critic on a specific thought.
-- `list_projects()` — list available projects.
-- `create_project(name)` — start a new project.
-- `switch_project(project_id)` — change the active project context.
-- `list_branches()` — show all branches in the current project.
-- `resume(limit?)` — load the last *n* thoughts (default 20) from the active branch.
-- `summarize(tag?)` — generate a compact summary of the active branch, optionally filtered by a tag.
-- `export(tag?)` — export the current plan in a structured format, optionally filtered by a tag.
-- `search_nodes(query, tags?)` — filter nodes by free-text query or list of enum tags.
-- `artifact_history(path)` — retrieve all nodes referencing the given artifact path.
-- `get_neighbors(node_id, depth?)` — retrieve a node along with its parents and children up to the specified depth.
-- `list_open_tasks()` — list all actor nodes tagged `Task` that aren’t marked `TaskComplete`.
+- `critic_review(actorNodeId, projectContext)` — manually re-run the critic on a specific thought.
+- `list_projects(projectContext?)` — list available projects.
+- `resume(projectContext, limit?)` — load the last *n* thoughts (default 20) from the project.
+- `export(projectContext, limit?)` — export the current plan in a structured format.
+- `search_nodes(projectContext, query?, tags?)` — filter nodes by free-text query or list of enum tags.
+- `artifact_history(projectContext, path, limit?)` — retrieve all nodes referencing the given artifact path.
+- `get_neighbors(id, projectContext, depth?)` — retrieve a node along with its parents and children up to the specified depth.
+- `get_node(id)` — retrieve a specific node by its ID.
+- `list_open_tasks(projectContext)` — list all actor nodes tagged `Task` that aren't marked `TaskComplete`.
+
 **Recommended Loop:**  
-1. `create_project` (or `switch_project` to resume an existing project).  
+1. Use `list_projects` to see available projects (new projects created automatically on first use).  
 2. `actor_think` → automatic critic feedback.  
 3. Iterate step 2 until the critic reports no issues.  
 4. Optional `critic_review` for a deeper manual audit.  
-5. `summarize` and/or `export` to review or share your progress.  
+5. Use `export` to review your progress.
 
 ### Context7 - Use for verifying accuracy of library methods before writing code
 - Use `resolve-library-id` to identify the correct library or module based on its name or identifier.
@@ -217,9 +216,10 @@ The multi-critic consensus system provides parallel review by three specialized 
 - Graceful fallback to single-critic on failure
 
 **Performance**:
-- Multi-critic: ~13.38s (within 30s target)
+- Multi-critic: ~13-67s depending on complexity (within reasonable targets)
 - Single-critic: ~9.64s
 - Log growth: 1.5x increase (sustainable)
+- Real-world test: 67.6s execution time with 8.75 KB log growth
 
 ### Key Memory System ✅
 **Status**: COMPLETED
@@ -232,11 +232,29 @@ Critics maintain contextual memory across actor_think calls:
 - Artifact-based retrieval with automatic lifespan extension
 - LRU eviction when memory slots are full
 - Memory statistics via `getMemoryStats()`
+- **Memory isolation**: Memories are only visible to critic models, never sent to the actor model
 
 **Implementation**:
 - `KeyMemorySystem` class in `src/engine/KeyMemorySystem.ts`
 - Integrated into `MultiCriticEngine`
 - Full unit test coverage (9 tests passing)
+
+### Artifact Content Loading ✅
+**Status**: COMPLETED
+
+Critics automatically receive full file contents for proper context:
+
+**Features**:
+- Automatic loading of artifact contents from filesystem
+- Max 3000 lines per file (truncated with notification if larger)
+- Supports both inline content and filesystem reading
+- Graceful error handling for missing/unreadable files
+- File contents included in critic prompts for comprehensive review
+
+**Implementation**:
+- `loadArtifactContents` method in `MultiCriticEngine`
+- Integrated into `gatherContext` workflow
+- Full unit test coverage (5 tests passing)
 
 ## MCP Server Summary
 

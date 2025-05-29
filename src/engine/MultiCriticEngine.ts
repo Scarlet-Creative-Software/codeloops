@@ -5,6 +5,8 @@ import { Tag } from './tags.js';
 import { getInstance as getLogger } from '../logger.js';
 import { generateObject } from '../utils/genai.js';
 import { KeyMemorySystem } from './KeyMemorySystem.js';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 // Schema for structured critic responses
 const CriticResponseSchema = z.object({
@@ -216,8 +218,8 @@ Highlight security risks with severity ratings.`,
       throw new Error(`Actor node ${actorNodeId} not found`);
     }
 
-    // TODO: Implement artifact content loading
-    const artifactContents = new Map<string, string>();
+    // Load artifact contents (max 3k lines per file)
+    const artifactContents = await this.loadArtifactContents(actorNode.artifacts || []);
 
     // Get related nodes for context
     const relatedNodes = await this.kg.getNeighbors(actorNodeId, 2);
@@ -551,6 +553,15 @@ Memory ${i + 1} (accessed ${m.accessCount} times):
 `).join('\n')}`;
     }
     
+    // Build artifact content section
+    let artifactContentSection = '';
+    if (context.artifactContents.size > 0) {
+      artifactContentSection = '\n\nArtifact Contents:\n';
+      for (const [path, content] of context.artifactContents.entries()) {
+        artifactContentSection += `\n--- ${path} ---\n${content}\n--- End of ${path} ---\n`;
+      }
+    }
+    
     return `${critic.promptTemplate}
 
 Context:
@@ -563,7 +574,7 @@ ${
   context.actorNode.artifacts && context.actorNode.artifacts.length > 0
     ? `Files affected: ${context.actorNode.artifacts.map((a) => a.path).join(', ')}`
     : ''
-}${memoryContext}
+}${artifactContentSection}${memoryContext}
 
 Provide a structured review focusing on ${critic.focus}.
 
@@ -629,5 +640,52 @@ Focus on constructive synthesis rather than defending your position.`;
    */
   getMemoryStats(): Record<string, { count: number; totalAccesses: number; avgLifespan: number }> {
     return this.keyMemory.getStats();
+  }
+
+  /**
+   * Loads the contents of artifacts, limited to 3000 lines per file
+   */
+  private async loadArtifactContents(
+    artifacts: Array<{ name: string; path: string; content?: string }>,
+  ): Promise<Map<string, string>> {
+    const contents = new Map<string, string>();
+    
+    for (const artifact of artifacts) {
+      try {
+        let fileContent: string;
+        
+        if (artifact.content) {
+          // If content is already provided in the artifact, use it directly
+          fileContent = artifact.content;
+        } else {
+          // Try to read the file from the filesystem
+          try {
+            // Resolve the path relative to the project root
+            const fullPath = resolve(artifact.path);
+            fileContent = readFileSync(fullPath, 'utf-8');
+          } catch (fsError) {
+            // If file doesn't exist or can't be read, use placeholder
+            contents.set(artifact.path, `[File not found or cannot be read: ${artifact.path}]`);
+            this.logger.warn({ path: artifact.path, error: fsError }, 'Could not read artifact file');
+            continue;
+          }
+        }
+        
+        // Split into lines and truncate if necessary
+        const lines = fileContent.split('\n');
+        if (lines.length > 3000) {
+          const truncatedContent = lines.slice(0, 3000).join('\n');
+          contents.set(artifact.path, truncatedContent + '\n\n... (truncated after 3000 lines)');
+          this.logger.info({ path: artifact.path, totalLines: lines.length }, 'Truncated large file for critic review');
+        } else {
+          contents.set(artifact.path, fileContent);
+        }
+      } catch (error) {
+        this.logger.error({ path: artifact.path, error }, 'Error loading artifact content');
+        contents.set(artifact.path, `[Error loading file: ${artifact.path}]`);
+      }
+    }
+
+    return contents;
   }
 }

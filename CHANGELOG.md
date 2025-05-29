@@ -16,6 +16,12 @@
   - Artifact-based memory retrieval and lifespan extension
   - LRU eviction when memory slots are full
   - Memory statistics tracking via getMemoryStats()
+  - Memory isolation ensures critics see memories but actor model does not
+- feat: add artifact content loading for critic reviews
+  - Automatic loading from filesystem when content not provided inline
+  - Max 3000 lines per file with truncation notification
+  - Graceful error handling for missing/unreadable files
+  - File contents included in critic prompts for comprehensive context
 - feat: add generateObject utility for structured AI responses with Zod validation
 - feat: add getZodExample helper for improved JSON parsing reliability
 - feat: add fallback to single-critic mode when multi-critic fails
@@ -23,10 +29,13 @@
 - fix: standardize all Gemini API calls to use `gemini-2.5-flash-preview-05-20` model
 - test: add comprehensive unit tests for multi-critic system
 - test: add unit tests for key_memory system with 100% coverage
+- test: add unit tests for artifact content loading (5 tests)
 - test: verify sustainable log growth (1.5x increase with multi-critic)
-- perf: multi-critic runs in ~13s (1.4x slower than single critic)
+- test: successful real-world test showing 67s execution time and proper consensus
+- perf: multi-critic runs in ~13s-67s depending on complexity (1.4x slower than single critic)
 - docs: complete README rewrite focusing on artificial brain architecture
 - docs: add multi-critic test results documentation
+- docs: update CLAUDE.md with completed feature status
 
 - feat: make summarization threshold configurable via `SUMMARIZATION_THRESHOLD` env var
 

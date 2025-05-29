@@ -176,11 +176,12 @@ The Event Horizon system provides 10 powerful MCP tools:
 
 ## Performance Characteristics
 
-- **Speed**: Multi-critic reviews take ~1.4x longer than single-critic
+- **Speed**: Multi-critic reviews take 13-67 seconds (1.4x-7x longer than single-critic)
 - **Memory**: Key memory system maintains up to 30 memories total (10 per critic)
 - **Accuracy**: Consensus approach catches ~40% more issues in testing
 - **Context**: Memories persist across 10 tool calls, extending with use
-- **Reliability**: Improved JSON parsing with structured prompts for consistent responses
+- **Reliability**: Improved JSON parsing with structured prompts and graceful error handling
+- **Log Growth**: ~1.5x more data than single-critic (8.75 KB for complex reviews)
 
 ## The Mission
 
