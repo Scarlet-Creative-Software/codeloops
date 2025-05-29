@@ -142,12 +142,36 @@ The artificial brain will:
 - Store key insights about payment processing patterns
 - Retrieve relevant memories when modifying payment code later
 
-## Available Tools
+## Available MCP Tools
 
-All original CodeLoops tools plus:
-- `actor_think` (enhanced): Now supports `feedback: true` for multi-critic consensus
-- Memory statistics available through system monitoring
-- Consensus analysis included in critic responses
+The Event Horizon system provides 10 powerful MCP tools:
+
+### Core Tools
+- **`actor_think`** - Primary tool for adding thoughts and triggering reviews
+  - Enhanced with `feedback: true` for multi-critic consensus
+  - Parameters: text, tags, artifacts, projectContext, parents?, diff?, feedback?
+- **`critic_review`** - Manually trigger critic evaluation on a specific node
+  - Parameters: actorNodeId, projectContext
+- **`resume`** - Load recent nodes to continue where you left off
+  - Parameters: projectContext, limit?
+
+### Navigation Tools  
+- **`get_node`** - Retrieve a specific node by ID
+  - Parameters: id
+- **`get_neighbors`** - Get a node with its parents and children
+  - Parameters: id, projectContext, depth?
+- **`search_nodes`** - Search by tags and/or text content
+  - Parameters: projectContext, tags?, query?, limit?
+
+### Project Management
+- **`list_projects`** - List all available knowledge graph projects
+  - Parameters: projectContext?
+- **`list_open_tasks`** - List incomplete tasks
+  - Parameters: projectContext
+- **`export`** - Export the knowledge graph
+  - Parameters: projectContext, limit?
+- **`artifact_history`** - Get history for a specific file
+  - Parameters: projectContext, path, limit?
 
 ## Performance Characteristics
 
@@ -155,6 +179,7 @@ All original CodeLoops tools plus:
 - **Memory**: Key memory system maintains up to 30 memories total (10 per critic)
 - **Accuracy**: Consensus approach catches ~40% more issues in testing
 - **Context**: Memories persist across 10 tool calls, extending with use
+- **Reliability**: Improved JSON parsing with structured prompts for consistent responses
 
 ## The Mission
 

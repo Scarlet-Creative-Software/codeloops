@@ -47,14 +47,16 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 
 ### MCP Tools Available
 
-- `actor_think` - Propose actions with reasoning
+- `actor_think` - Propose actions with reasoning (supports feedback:true for multi-critic)
 - `critic_review` - Get Critic feedback on proposals
 - `resume` - Resume from previous session
 - `export` - Export knowledge graph
 - `search_nodes` - Search knowledge by tag/content
-- `get_related_nodes` - Find connected nodes
-- `update_node` - Modify existing nodes
-- `delete_node` - Remove nodes
+- `get_node` - Retrieve specific node by ID
+- `get_neighbors` - Find connected nodes (parents/children)
+- `artifact_history` - Get history for specific file
+- `list_open_tasks` - List incomplete tasks
+- `list_projects` - List all available projects
 
 ### Testing
 
