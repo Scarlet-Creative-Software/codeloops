@@ -182,7 +182,7 @@ Highlight security risks with severity ratings.`,
       const finalCritique = await this.generateFinalCritique(context, consensus);
 
       // 6. Store memories if requested by critics
-      this.storeMemoriesIfRequested(context.actorNode, initialReviews, finalCritique);
+      this.storeMemoriesIfRequested(context.actorNode, initialReviews);
 
       // 7. Create and store the critic node
       const criticNode = await this.createCriticNode({
@@ -607,7 +607,6 @@ Focus on constructive synthesis rather than defending your position.`;
   private storeMemoriesIfRequested(
     actorNode: DagNode,
     reviews: Map<string, CriticResponse>,
-    finalCritique: string,
   ): void {
     for (const [criticId, review] of reviews.entries()) {
       if (review.storeMemory === true) {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
-import { MultiCriticEngine } from './MultiCriticEngine.js';
+import { MultiCriticEngine, type ConsensusAnalysis } from './MultiCriticEngine.js';
 import { KnowledgeGraphManager, type DagNode } from './KnowledgeGraph.js';
 import { Tag } from './tags.js';
 import { createLogger, setGlobalLogger, getInstance as getLogger } from '../logger.js';
@@ -325,7 +325,7 @@ describe('MultiCriticEngine', () => {
       });
 
       expect(criticNode.thought).toContain('unanimous');
-      expect(criticNode.metadata?.consensusAnalysis.strongConsensus).toHaveLength(1);
+      expect((criticNode.metadata?.consensusAnalysis as ConsensusAnalysis).strongConsensus).toHaveLength(1);
     });
 
     it('should handle majority consensus correctly', async () => {
@@ -423,7 +423,7 @@ describe('MultiCriticEngine', () => {
       });
 
       expect(criticNode.thought).toContain('majority');
-      expect(criticNode.metadata?.consensusAnalysis.majorityConsensus).toHaveLength(1);
+      expect((criticNode.metadata?.consensusAnalysis as ConsensusAnalysis).majorityConsensus).toHaveLength(1);
     });
   });
 });

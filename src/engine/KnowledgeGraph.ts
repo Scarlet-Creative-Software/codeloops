@@ -44,7 +44,7 @@ export interface DagNode extends ActorThinkInput, WithProjectContext {
   children: string[];
   createdAt: string; // ISO timestamp
   summarizedSegment?: string[]; // IDs of nodes summarized (for summary nodes)
-  metadata?: Record<string, any>; // Additional metadata for specialized nodes
+  metadata?: Record<string, unknown>; // Additional metadata for specialized nodes
 }
 
 export interface SummaryNode extends DagNode {

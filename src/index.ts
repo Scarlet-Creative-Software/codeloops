@@ -12,7 +12,7 @@ import { CodeLoopsLogger, getInstance as getLogger, setGlobalLogger } from './lo
 import { extractProjectName } from './utils/project.ts';
 
 // Helper function to safely stringify large objects
-function safeStringify(obj: any, maxLength = 10000): string {
+function safeStringify(obj: unknown, maxLength = 10000): string {
   const jsonString = JSON.stringify(obj, null, 2);
   if (jsonString.length <= maxLength) {
     return jsonString;

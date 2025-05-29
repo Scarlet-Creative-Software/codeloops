@@ -8,7 +8,7 @@ import { DagNode, KnowledgeGraphManager, SummaryNode } from '../engine/Knowledge
 import { Tag } from '../engine/tags.ts';
 
 // Maximum length for debug output (500 chars - much more reasonable for frequent logging)
-const MAX_DEBUG_LENGTH = 500;
+// const MAX_DEBUG_LENGTH = 500;
 
 /**
  * SummarizationAgent provides an interface to the Python-based summarization agent.
