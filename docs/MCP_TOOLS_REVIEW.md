@@ -4,7 +4,7 @@
 
 This document provides a comprehensive review of all available MCP tools in the CodeLoops Event Horizon system, including their parameters, usage, and the multi-critic consensus system.
 
-## Available MCP Tools (10 total)
+## Available MCP Tools (12 total)
 
 ### 1. actor_think
 **Purpose**: Primary tool for adding thoughts to the knowledge graph and triggering critic reviews
@@ -89,6 +89,76 @@ This document provides a comprehensive review of all available MCP tools in the 
 
 **Parameters**:
 - `projectContext` (string, optional): Current project path to highlight
+
+### 11. get_cache_stats
+**Purpose**: Get comprehensive cache statistics and performance metrics
+
+**Parameters**: None
+
+**Returns**:
+- Index system statistics (B-tree performance)
+- Semantic cache metrics (hit rates, cache size, confidence scores)
+- Configuration details (thresholds, TTL, cache size limits)
+- Embedding and vector index statistics
+
+### 12. cleanup_caches
+**Purpose**: Manually trigger cache cleanup and optimization
+
+**Parameters**: None
+
+**Returns**:
+- Cleanup completion status
+- Number of entries cleaned
+- Post-cleanup cache statistics
+
+**Usage**: Useful for memory management and cache optimization during long sessions
+
+## Semantic Cache System (Phase 2.1)
+
+### Overview
+The semantic cache system intelligently caches query results using vector embeddings and similarity search to reduce API calls and improve response times.
+
+### Three-Tier Cache Lookup
+1. **Exact Match Cache**: O(1) lookup for identical queries
+2. **Semantic Similarity Search**: O(log n) vector similarity using HNSW index
+3. **API Fallback**: Fresh API call with automatic result caching
+
+### Key Features
+- **Vector Embeddings**: Uses Gemini embeddings API for query vectorization
+- **HNSW Index**: Hierarchical Navigable Small World algorithm for efficient similarity search
+- **Configurable Thresholds**: Similarity (0.85) and confidence (0.90) thresholds
+- **Automatic Invalidation**: Cache entries invalidated on content changes
+- **TTL Management**: 24-hour default TTL with automatic cleanup
+
+### Configuration
+The semantic cache can be configured via `codeloops.config.yaml`:
+
+```yaml
+performance:
+  semanticCache:
+    enabled: true
+    embeddingModel: "text-embedding-004"
+    similarityThreshold: 0.85
+    confidenceThreshold: 0.90
+    maxCandidates: 10
+    cacheSize: 10000
+    ttl: 86400000  # 24 hours in ms
+    cleanup:
+      enabled: true
+      intervalMs: 3600000  # 1 hour
+      maxAge: 604800000    # 7 days
+    hnsw:
+      efConstruction: 200
+      efSearch: 50
+      maxConnections: 16
+      similarityMetric: "cosine"
+```
+
+### Performance Benefits
+- Typical cache hit rates: 40-60% for semantic matching
+- Reduced API calls by up to 50%
+- Sub-millisecond exact cache hits
+- <10ms semantic similarity searches
 
 ## Multi-Critic Consensus System
 

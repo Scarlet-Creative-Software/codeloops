@@ -9,6 +9,8 @@ import { CodeLoopsLogger } from '../logger.ts';
 import { ActorThinkInput } from './ActorCriticEngine.ts';
 import { TagEnum, Tag } from './tags.ts';
 import { KnowledgeGraphIndexSystem } from './IndexSystem.ts';
+import { SemanticCacheManager, createSemanticCacheManager, SemanticQuery } from './SemanticCacheManager.ts';
+import { PerformanceConfig } from '../config/schema.ts';
 
 // -----------------------------------------------------------------------------
 // Interfaces & Schemas --------------------------------------------------------
@@ -65,6 +67,8 @@ export class KnowledgeGraphManager {
   private cacheTimeout = 30000; // 30 seconds
   private indexSystem: KnowledgeGraphIndexSystem;
   private isIndexInitialized = false;
+  private semanticCacheManager?: SemanticCacheManager;
+  private semanticCacheConfig?: PerformanceConfig['semanticCache'];
 
   // Schema for validating DagNode entries
   private static DagNodeSchema = z.object({
@@ -87,15 +91,26 @@ export class KnowledgeGraphManager {
     metadata: z.record(z.any()).optional(),
   });
 
-  constructor(logger: CodeLoopsLogger) {
+  constructor(logger: CodeLoopsLogger, semanticCacheConfig?: PerformanceConfig['semanticCache']) {
     this.logger = logger;
     this.indexSystem = new KnowledgeGraphIndexSystem();
+    this.semanticCacheConfig = semanticCacheConfig;
+    
+    // Initialize semantic cache if enabled
+    if (semanticCacheConfig?.enabled) {
+      this.semanticCacheManager = createSemanticCacheManager(semanticCacheConfig, logger);
+    }
   }
 
   async init() {
     this.logger.info(`[KnowledgeGraphManager] Initializing from ${this.logFilePath}`);
     await this.loadLog();
     await this.initializeIndex();
+    
+    // Initialize semantic cache if enabled
+    if (this.semanticCacheManager) {
+      await this.semanticCacheManager.initialize();
+    }
   }
 
   private async loadLog() {
@@ -192,6 +207,11 @@ export class KnowledgeGraphManager {
         // Update index system after successful write
         if (this.isIndexInitialized) {
           this.indexSystem.indexNode(entity);
+        }
+        
+        // Invalidate semantic cache for related queries
+        if (this.semanticCacheManager && entity.tags) {
+          await this.semanticCacheManager.invalidateByTags(entity.tags.map(t => t.toString()));
         }
         
         return;
@@ -459,6 +479,55 @@ export class KnowledgeGraphManager {
     query?: string;
     limit?: number;
   }): Promise<DagNode[]> {
+    // Use semantic cache if available and query has text content
+    if (this.semanticCacheManager && query) {
+      const semanticQuery: SemanticQuery = {
+        project,
+        query,
+        tags: tags?.map(t => t.toString()),
+        limit
+      };
+      
+      // Define fallback function for cache miss
+      const fallbackFn = async (): Promise<DagNode[]> => {
+        return this.performDirectSearch(project, tags, query, limit);
+      };
+      
+      try {
+        const cacheResult = await this.semanticCacheManager.searchWithCache(semanticQuery, fallbackFn);
+        
+        // Log cache performance for monitoring
+        this.logger.debug(`[KnowledgeGraphManager] Search completed`, {
+          source: cacheResult.source,
+          confidence: cacheResult.confidence,
+          similarity: cacheResult.similarity,
+          resultCount: cacheResult.results.length,
+          searchTime: cacheResult.metrics.searchTime,
+          embeddingTime: cacheResult.metrics.embeddingTime,
+          apiTime: cacheResult.metrics.apiTime
+        });
+        
+        return cacheResult.results;
+        
+      } catch (error) {
+        this.logger.warn('[KnowledgeGraphManager] Semantic cache failed, falling back to direct search', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Fall back to direct search on cache failure
+        return this.performDirectSearch(project, tags, query, limit);
+      }
+    }
+    
+    // Direct search without semantic caching
+    return this.performDirectSearch(project, tags, query, limit);
+  }
+
+  private async performDirectSearch(
+    project: string,
+    tags?: Tag[],
+    query?: string,
+    limit?: number
+  ): Promise<DagNode[]> {
     // Use index system for optimized search
     if (this.isIndexInitialized) {
       let results: DagNode[] = [];
@@ -578,6 +647,20 @@ export class KnowledgeGraphManager {
   }
 
   /**
+   * Get semantic cache statistics for monitoring and debugging
+   */
+  getSemanticCacheStats() {
+    if (!this.semanticCacheManager) {
+      return { enabled: false, message: 'Semantic cache not enabled' };
+    }
+    
+    return {
+      enabled: true,
+      ...this.semanticCacheManager.getMetrics()
+    };
+  }
+
+  /**
    * Force rebuild of the index system
    * Useful for recovery or after manual file modifications
    */
@@ -586,5 +669,35 @@ export class KnowledgeGraphManager {
     this.indexSystem.clear();
     this.isIndexInitialized = false;
     await this.initializeIndex();
+  }
+
+  /**
+   * Cleanup expired cache entries and optimize storage
+   */
+  async cleanup() {
+    this.logger.info('[KnowledgeGraphManager] Running cleanup...');
+    
+    if (this.semanticCacheManager) {
+      await this.semanticCacheManager.cleanup();
+    }
+    
+    this.logger.info('[KnowledgeGraphManager] Cleanup completed');
+  }
+
+  /**
+   * Clear all caches and reset state
+   */
+  async clearCaches() {
+    this.logger.info('[KnowledgeGraphManager] Clearing caches...');
+    
+    // Clear node cache
+    this.nodeCache.clear();
+    
+    // Clear semantic cache if available
+    if (this.semanticCacheManager) {
+      await this.semanticCacheManager.clear();
+    }
+    
+    this.logger.info('[KnowledgeGraphManager] All caches cleared');
   }
 }

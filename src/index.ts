@@ -10,6 +10,7 @@ import { TagEnum } from './engine/tags.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { CodeLoopsLogger, getInstance as getLogger, setGlobalLogger } from './logger.ts';
 import { extractProjectName } from './utils/project.ts';
+import { ConfigurationManager } from './config/ConfigurationManager.ts';
 
 // Helper function to safely stringify large objects
 function safeStringify(obj: unknown, maxLength = 10000): string {
@@ -66,8 +67,18 @@ async function main() {
   const runOnce = runOnceOnProjectLoad({ logger });
   logger.info('Starting CodeLoops MCP server...');
 
-  // Create KnowledgeGraphManager
-  const kg = new KnowledgeGraphManager(logger);
+  // Load configuration
+  const configManager = new ConfigurationManager();
+  const config = configManager.getAll();
+  
+  logger.info('Configuration loaded', {
+    semanticCacheEnabled: config.performance.semanticCache.enabled,
+    cacheStrategy: config.performance.cache.strategy,
+    logLevel: config.system.logLevel
+  });
+
+  // Create KnowledgeGraphManager with semantic cache configuration
+  const kg = new KnowledgeGraphManager(logger, config.performance.semanticCache);
   await kg.init();
 
   // Create SummarizationAgent with KnowledgeGraphManager
@@ -358,6 +369,90 @@ async function main() {
           },
         ],
       };
+    },
+  );
+
+  /** get_cache_stats – Get comprehensive cache statistics and performance metrics */
+  server.tool(
+    'get_cache_stats',
+    'Get detailed statistics about semantic cache performance, hit rates, and system health',
+    {},
+    async () => {
+      const indexStats = kg.getIndexStats();
+      const semanticCacheStats = kg.getSemanticCacheStats();
+      
+      const stats = {
+        timestamp: new Date().toISOString(),
+        indexSystem: indexStats,
+        semanticCache: semanticCacheStats,
+        configuration: {
+          semanticCacheEnabled: config.performance.semanticCache.enabled,
+          similarityThreshold: config.performance.semanticCache.similarityThreshold,
+          confidenceThreshold: config.performance.semanticCache.confidenceThreshold,
+          cacheSize: config.performance.semanticCache.cacheSize,
+          ttl: config.performance.semanticCache.ttl
+        }
+      };
+
+      logger.info('[get_cache_stats] Cache statistics requested', {
+        semanticCacheEnabled: semanticCacheStats.enabled,
+        hitRates: 'hitRates' in semanticCacheStats ? semanticCacheStats.hitRates : undefined
+      });
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: safeStringify(stats),
+          },
+        ],
+      };
+    },
+  );
+
+  /** cleanup_caches – Manually trigger cache cleanup and optimization */
+  server.tool(
+    'cleanup_caches',
+    'Manually trigger cleanup of expired cache entries and optimize cache performance',
+    {},
+    async () => {
+      logger.info('[cleanup_caches] Manual cache cleanup initiated');
+      
+      try {
+        await kg.cleanup();
+        
+        const postCleanupStats = {
+          timestamp: new Date().toISOString(),
+          message: 'Cache cleanup completed successfully',
+          semanticCache: kg.getSemanticCacheStats()
+        };
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: safeStringify(postCleanupStats),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.error('[cleanup_caches] Cleanup failed', { 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: safeStringify({
+                timestamp: new Date().toISOString(),
+                error: 'Cache cleanup failed',
+                details: error instanceof Error ? error.message : String(error)
+              }),
+            },
+          ],
+        };
+      }
     },
   );
 

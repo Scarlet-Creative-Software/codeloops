@@ -84,6 +84,27 @@ export const PerformanceConfigSchema = z.object({
     strategy: z.enum(['lru', 'lfu', 'fifo']).default('lru'),
   }).default({}),
   
+  semanticCache: z.object({
+    enabled: z.boolean().default(true),
+    embeddingModel: z.string().default('text-embedding-004'),
+    similarityThreshold: z.number().min(0).max(1).default(0.85),
+    confidenceThreshold: z.number().min(0).max(1).default(0.90),
+    maxCandidates: z.number().min(1).max(100).default(10),
+    cacheSize: z.number().min(1000).default(10000),
+    ttl: z.number().min(300).default(86400000), // 24 hours in ms
+    cleanup: z.object({
+      enabled: z.boolean().default(true),
+      intervalMs: z.number().default(3600000), // 1 hour
+      maxAge: z.number().default(604800000), // 7 days in ms
+    }).default({}),
+    hnsw: z.object({
+      efConstruction: z.number().default(200),
+      efSearch: z.number().default(50),
+      maxConnections: z.number().default(16),
+      similarityMetric: z.enum(['cosine', 'euclidean', 'dot']).default('cosine'),
+    }).default({}),
+  }).default({}),
+  
   connectionPool: z.object({
     maxConnections: z.number().default(10),
     idleTimeout: z.number().default(60000),
@@ -118,4 +139,8 @@ export const HotReloadableSettings = [
   'engine.knowledgeGraph.enableCycleDetection',
   'performance.cache.enabled',
   'performance.cache.ttl',
+  'performance.semanticCache.enabled',
+  'performance.semanticCache.similarityThreshold',
+  'performance.semanticCache.confidenceThreshold',
+  'performance.semanticCache.maxCandidates',
 ];
