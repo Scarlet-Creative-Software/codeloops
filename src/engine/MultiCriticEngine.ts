@@ -177,6 +177,12 @@ Highlight security risks with severity ratings.`,
           await resetConnectionManager();
         }
       } catch (error) {
+        // If API key is not configured, log instructional message and fail gracefully
+        if (error instanceof Error && error.message.includes('API Key Configuration Required')) {
+          this.logger.warn('Multi-critic system unavailable: API key not configured');
+          this.logger.info(error.message);
+          throw new Error('Multi-critic requires API key configuration');
+        }
         // Connection manager might not be initialized yet, continue
         this.logger.debug('Could not check circuit breaker state:', error);
       }

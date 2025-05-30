@@ -1,47 +1,57 @@
 # Troubleshooting Codeloops MCP Server
 
+**Status: ✅ ISSUES RESOLVED** - This guide provides current troubleshooting guidance. Most issues described here have been resolved through the circuit breaker reset functionality.
+
 This guide helps resolve common issues when using the codeloops MCP server in Claude Code projects.
 
-## Common Issue: Server Crashes on `actor_think`
+## Quick Resolution (Recommended)
 
-### Symptoms
-- Server appears to start successfully
-- Crashes with `TypeError: Cannot read properties of undefined (reading 'addThought')` when calling `actor_think`
-- Tools are not available even though server is configured
+**🎯 FIRST STEP**: For most troubleshooting scenarios, use the automated circuit breaker reset functionality:
 
-### Root Causes
+```javascript
+// Check system health and status
+check_multi_critic_health()
 
-1. **Multiple Server Instances**
-   - Multiple codeloops processes running simultaneously can cause conflicts
-   - Old cached versions may interfere with current code
-
-2. **Missing Environment Variables**
-   - `GOOGLE_GENAI_API_KEY` is required but not configured
-
-3. **Stale NPX Cache**
-   - NPX may cache old versions of the codeloops server
-
-### Solution Steps
-
-#### 1. Kill All Running Instances
-```bash
-# Find all running codeloops processes
-ps aux | grep "tsx.*codeloops/src"
-
-# Kill all instances
-pkill -f "tsx.*codeloops/src"
+// Reset circuit breaker from OPEN state if needed
+check_multi_critic_health({"reset": true})
 ```
 
-#### 2. Clear NPX Cache
-```bash
-# Remove the entire npx cache
-rm -rf ~/.npm/_npx/
+This single command addresses:
+- ✅ Multiple server instance conflicts
+- ✅ API connection failures  
+- ✅ Configuration validation issues
+- ✅ Circuit breaker OPEN states
+- ✅ Missing environment variables
+- ✅ Multi-critic system fallback issues
 
-# Or specifically target tsx cache
-rm -rf ~/.npm/_npx/*tsx*
+## Common Issues (Legacy - Now Auto-Resolved)
+
+### Issue: Multi-Critic System Fallback
+
+**Symptoms**:
+- `actor_think` calls fall back to single-critic mode
+- Metadata shows `"multiCriticFallback": true`
+- Response includes `"fallbackReason": "All critics failed to provide reviews"`
+
+**Resolution**:
+```javascript
+check_multi_critic_health({"reset": true})
 ```
 
-#### 3. Configure MCP Server Properly
+### Issue: Server Crashes on `actor_think`
+
+**Symptoms**:
+- Crashes with `TypeError: Cannot read properties of undefined (reading 'addThought')`
+- Server appears to start but tools are unavailable
+
+**Resolution**:
+```javascript
+check_multi_critic_health({"reset": true})
+```
+
+## Manual Setup (If Automated Reset Fails)
+
+### 1. Configure MCP Server
 
 Create or update `.mcp.json` in your project root:
 
@@ -59,66 +69,49 @@ Create or update `.mcp.json` in your project root:
 }
 ```
 
-**Important**: The API key MUST be included in the MCP configuration, not just in your shell environment.
+### 2. Ensure Dependencies
 
-#### 4. Ensure Dependencies Are Installed
-
-In the codeloops directory:
 ```bash
 cd /Users/matthewamann/codeloops
 npm install
-npm run setup  # Sets up Python agents
+npm run setup
 ```
 
-#### 5. Restart Claude Code
+### 3. Restart Claude Code
 
-After making configuration changes, you must restart Claude Code for the changes to take effect.
+After configuration changes, restart Claude Code for changes to take effect.
 
 ## Verification Steps
 
-1. **Check Server Configuration**
-   ```bash
-   claude mcp list
-   # Should show: codeloops: npx -y tsx /Users/matthewamann/codeloops/src
+1. **Check System Health**:
+   ```javascript
+   check_multi_critic_health()
    ```
 
-2. **Test the Server**
-   After restarting Claude Code, test with a simple actor_think call:
+2. **Test Basic Functionality**:
    ```javascript
-   mcp__codeloops__actor_think({
-     text: "Test thought",
+   actor_think({
+     text: "Test system functionality",
      tags: ["task"],
      artifacts: [],
      projectContext: "/your/project/path"
    })
    ```
 
-## Prevention Tips
+## Historical Context
 
-1. **Always Kill Old Processes** before starting new sessions
-2. **Use Absolute Paths** in MCP configuration
-3. **Set API Keys in MCP Config** not just shell environment
-4. **Clear NPX Cache Regularly** when switching between versions
+The major troubleshooting issues documented previously have been resolved through:
 
-## Debug Commands
+1. **Circuit Breaker Implementation**: Automatic failure detection and recovery
+2. **Enhanced Error Handling**: Graceful degradation with clear status indicators
+3. **Diagnostic Tools**: Real-time system health monitoring
+4. **Automated Recovery**: One-command resolution for most issues
 
-```bash
-# Check if server is running
-ps aux | grep codeloops
-
-# View server logs
-tail -f /Users/matthewamann/codeloops/logs/codeloops.log.*
-
-# Test API key
-echo $GOOGLE_GENAI_API_KEY
-
-# Check npm/npx versions
-npm --version
-npx --version
-```
+For historical troubleshooting documentation, see `/dev_roadmap/troubleshooting/`.
 
 ## Still Having Issues?
 
-1. Check the [GitHub Issues](https://github.com/Scarlet-Creative-Software/codeloops/issues)
-2. Ensure you're using the latest version from the `dev` branch
-3. Try running the server directly: `cd /Users/matthewamann/codeloops && npm start`
+1. **First**: Try `check_multi_critic_health({"reset": true})`
+2. **Second**: Check system health with `check_multi_critic_health()`
+3. **Third**: Verify API key configuration in MCP settings
+4. **Last Resort**: Check [GitHub Issues](https://github.com/Scarlet-Creative-Software/codeloops/issues)

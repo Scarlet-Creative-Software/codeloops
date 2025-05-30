@@ -658,11 +658,38 @@ let connectionManager: GeminiConnectionManager | null = null;
 export function getConnectionManager(apiKey?: string): GeminiConnectionManager {
   if (!connectionManager) {
     if (!apiKey) {
-      const envKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-      if (!envKey) {
-        throw new Error('GEMINI_API_KEY or GOOGLE_GENAI_API_KEY environment variable not set');
+      // Check for unified CODELOOPS_KEY first, then fallback to provider-specific keys
+      const codeloopsKey = process.env.CODELOOPS_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+      
+      apiKey = codeloopsKey || geminiKey;
+      
+      if (!apiKey) {
+        const instructionalMessage = `
+🔑 API Key Configuration Required
+
+To use codeloops multi-critic consensus system, you need to configure an API key.
+
+Option 1 - Unified Configuration (Recommended):
+  Set CODELOOPS_KEY environment variable with your API key
+  Set CODELOOPS_MODEL=gemini (or claude/openai for future support)
+
+Option 2 - Provider-specific Configuration:
+  Set GOOGLE_GENAI_API_KEY environment variable with your Gemini API key
+
+Example .env file:
+  CODELOOPS_MODEL=gemini
+  CODELOOPS_KEY=your-api-key-here
+  # OR
+  GOOGLE_GENAI_API_KEY=your-api-key-here
+
+Get a Gemini API key at: https://ai.google.dev/
+
+Without an API key, the system will fall back to single-critic mode.
+        `.trim();
+        
+        throw new Error(instructionalMessage);
       }
-      apiKey = envKey;
     }
     connectionManager = new GeminiConnectionManager(apiKey, {
       rateLimit: GEMINI_CONNECTION_CONFIG.rateLimit,
@@ -674,7 +701,7 @@ export function getConnectionManager(apiKey?: string): GeminiConnectionManager {
   return connectionManager;
 }
 
-// For testing purposes
+// For testing and recovery purposes
 export async function resetConnectionManager(): Promise<void> {
   if (connectionManager) {
     await connectionManager.shutdown();
