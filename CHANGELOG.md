@@ -23,6 +23,17 @@
 - fix: Improved response format to ensure users get actionable feedback even during failures
   - Single-critic responses now include artifact counts, timestamps, and structured recommendations
   - Enhanced metadata clearly shows system state and provides troubleshooting guidance
+- feat: Added circuit breaker reset functionality for multi-critic system recovery
+  - Manual reset capability through `check_multi_critic_health({"reset": true})` MCP tool
+  - Instantly resets circuit breaker from OPEN state to CLOSED, restoring multi-critic functionality
+  - Automatic status updates and comprehensive logging after reset operations
+  - Enables immediate recovery from OPEN circuit breaker state without waiting for timeout period
+  - Particularly useful when API issues are resolved but circuit breaker remains OPEN
+- fix: RESOLVED multi-critic feedback issue affecting other Claude instances
+  - Other Claude instances now receive rich multi-critic consensus instead of basic symbols
+  - Enhanced fallback provides structured feedback even when multi-critic system fails
+  - Clear diagnostic information available to troubleshoot and resolve system issues
+  - Comprehensive test verification confirms functionality works correctly
 
 ## [0.6.0] - 2025-05-30
 

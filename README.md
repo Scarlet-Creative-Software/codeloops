@@ -289,9 +289,11 @@ The Event Horizon system provides 10 powerful MCP tools:
   - Triggers cache maintenance and expired entry removal
 
 ### Diagnostic Tools
-- **`check_multi_critic_health`** - Multi-critic system diagnostics
+- **`check_multi_critic_health`** - Multi-critic system diagnostics and reset
   - Reports API configuration, circuit breaker status, system health
   - Provides troubleshooting recommendations for fallback issues
+  - **Reset capability**: Use `check_multi_critic_health({"reset": true})` to reset circuit breaker
+  - Instantly restores multi-critic functionality when circuit breaker is OPEN
   - Helps identify why multi-critic might be failing silently
 
 ### Project Management
@@ -360,6 +362,20 @@ This tool will:
 - Report system health metrics
 - Provide specific troubleshooting recommendations
 
+### Circuit Breaker Reset
+
+If the circuit breaker is OPEN (blocking multi-critic calls), you can manually reset it:
+
+```
+check_multi_critic_health({"reset": true})
+```
+
+This will:
+- Instantly reset the circuit breaker from OPEN to CLOSED state
+- Restore full multi-critic functionality immediately
+- Log the reset operation with comprehensive status updates
+- Eliminate the need to wait for the automatic timeout period
+
 ### Common Multi-Critic Issues
 
 **Symptom**: Getting basic "✔ Approved" instead of detailed multi-critic feedback
@@ -368,6 +384,7 @@ This tool will:
 1. **Missing API Key**: Ensure `GOOGLE_GENAI_API_KEY` is properly set
 2. **Rate Limiting**: Multi-critic may fall back during high API usage
 3. **Circuit Breaker Open**: System may be protecting against repeated failures
+   - Use `check_multi_critic_health({"reset": true})` to manually reset the circuit breaker
 4. **Network Issues**: Temporary connectivity problems cause fallback
 
 **Response Indicators**:
