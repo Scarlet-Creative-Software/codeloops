@@ -83,6 +83,7 @@ export async function generateObject<T>({
   system,
   generationConfig,
   priority = RequestPriority.NORMAL,
+  timeout,
 }: {
   model: string;
   messages: { role: string; content: string }[];
@@ -95,6 +96,7 @@ export async function generateObject<T>({
     topP?: number;
   };
   priority?: RequestPriority;
+  timeout?: number;
 }): Promise<T> {
   // Convert messages to Content format
   const contents: Content[] = [];
@@ -124,7 +126,7 @@ export async function generateObject<T>({
         config: generationConfig,
       });
     },
-    { priority }
+    { priority, timeout }
   );
   
   const text = result.text ?? '{}';

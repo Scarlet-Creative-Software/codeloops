@@ -222,7 +222,30 @@ Highlight security risks with severity ratings.`,
 
       return criticNode;
     } catch (error) {
-      this.logger.error({ error, actorNodeId }, 'Multi-critic review failed, falling back to single critic');
+      this.logger.error({ 
+        error: error instanceof Error ? { 
+          name: error.name, 
+          message: error.message,
+          stack: error.stack?.split('\n').slice(0, 5).join('\n')
+        } : error, 
+        actorNodeId,
+        // Add detailed diagnostics
+        connectionManagerStatus: (() => {
+          try {
+            const manager = getConnectionManager();
+            return {
+              metrics: manager.getMetrics(),
+              circuitBreaker: manager.getCircuitBreakerStatus()
+            };
+          } catch (e) {
+            return { error: e instanceof Error ? e.message : 'Unknown error getting connection manager' };
+          }
+        })(),
+        criticConfiguration: {
+          critics: this.critics.map(c => ({ id: c.id, specialization: c.specialization })),
+          criticsCount: this.critics.length
+        }
+      }, 'Multi-critic review failed - comprehensive error analysis');
       throw error; // Let the caller handle fallback
     }
   }
@@ -345,12 +368,31 @@ Highlight security risks with severity ratings.`,
       const reviewPromise = (async () => {
         let prompt = '';
         try {
+        this.logger.info({ criticId: critic.id }, 'Starting critic review');
         prompt = this.buildCriticPrompt(critic, context);
         
         // Get temperature based on critic type
         const temperature = this.getCriticTemperature(critic.id);
+        this.logger.info({ 
+          criticId: critic.id, 
+          temperature, 
+          promptLength: prompt.length 
+        }, 'Critic prompt built, starting API call');
         
         const response = await retryJsonParse(async () => {
+          this.logger.debug({ 
+            criticId: critic.id, 
+            model: 'gemini-2.5-flash-preview-05-20',
+            temperature,
+            maxTokens: (() => {
+              try {
+                return getConfig<number>('model.gemini.maxTokens');
+              } catch {
+                return CRITIC_MAX_TOKENS;
+              }
+            })()
+          }, 'Calling generateObject');
+          
           const rawResponse = await generateObject({
             model: 'gemini-2.5-flash-preview-05-20',
             messages: [{ role: 'user', content: prompt }],
@@ -366,29 +408,52 @@ Highlight security risks with severity ratings.`,
               })(),
             },
             priority: RequestPriority.HIGH, // Multi-critic requests are high priority
+            timeout: 120000, // 120 seconds timeout for complex multi-critic requests
             // Note: GeminiConnectionManager handles rate limiting internally
           });
+          
+          this.logger.info({ 
+            criticId: critic.id, 
+            responseLength: JSON.stringify(rawResponse).length 
+          }, 'generateObject completed successfully');
           
           // Preprocess the response to ensure JSON safety
           return preprocessCriticResponse(rawResponse) as CriticResponse;
         }, {
           maxAttempts: 3,
-          onRetry: (_error, attempt) => {
-            this.logger.warn({ criticId: critic.id, attempt }, 'Retrying critic review due to JSON parsing error');
+          onRetry: (error, attempt) => {
+            this.logger.warn({ 
+              criticId: critic.id, 
+              attempt, 
+              error: error.message 
+            }, 'Retrying critic review due to JSON parsing error');
           }
         });
 
+          this.logger.info({ criticId: critic.id }, 'Critic review completed successfully');
           reviews.set(critic.id, response);
         } catch (error) {
           this.logger.error({ 
             error: error instanceof Error ? { 
               name: error.name, 
               message: error.message,
-              stack: error.stack?.split('\n').slice(0, 3).join('\n')
+              stack: error.stack?.split('\n').slice(0, 5).join('\n')
             } : error, 
             criticId: critic.id,
-            promptPreview: prompt.substring(0, 200) + '...'
-          }, 'Critic review failed');
+            promptPreview: prompt.substring(0, 200) + '...',
+            // Add additional context that might help debugging
+            connectionManagerStatus: (() => {
+              try {
+                const manager = getConnectionManager();
+                return {
+                  metrics: manager.getMetrics(),
+                  circuitBreaker: manager.getCircuitBreakerStatus()
+                };
+              } catch (e) {
+                return { error: e instanceof Error ? e.message : 'Unknown error getting connection manager' };
+              }
+            })()
+          }, 'Critic review failed - detailed error analysis');
           // Continue with other critics even if one fails
         }
       })();
@@ -433,6 +498,7 @@ Highlight security risks with severity ratings.`,
               model: 'gemini-2.5-flash-preview-05-20',
               messages: [{ role: 'user', content: prompt }],
               schema: CrossCriticResponseSchema,
+              timeout: 120000, // 120 seconds timeout for cross-critic comparison
             });
             
             return preprocessCriticResponse(rawResponse) as CrossCriticResponse;
@@ -602,6 +668,7 @@ Focus on the most important issues that will improve the code quality.`;
         model: 'gemini-2.5-flash-preview-05-20',
         messages: [{ role: 'user', content: prompt }],
         schema: responseSchema,
+        timeout: 120000, // 120 seconds timeout for final synthesis
         generationConfig: {
           temperature: CRITIC_TEMPERATURES.default,
           maxOutputTokens: (() => {
@@ -776,6 +843,9 @@ Compare your review with the other critics:
 1. Identify points of agreement and disagreement
 2. Revise your confidence scores based on the other perspectives
 3. Provide your final stance on the key issues
+
+For revisedConfidences, provide an object mapping each issue/topic to a numeric confidence score (0-1):
+Example: {"codeQuality": 0.8, "performance": 0.95, "security": 0.7}
 
 Focus on constructive synthesis rather than defending your position.`;
   }

@@ -664,6 +664,15 @@ export function getConnectionManager(apiKey?: string): GeminiConnectionManager {
       
       apiKey = codeloopsKey || geminiKey;
       
+      // Safe logging for debugging - log which key source was used and first 8 chars
+      const logger = createLogger({ withDevStdout: true });
+      if (codeloopsKey) {
+        logger.info(`Using CODELOOPS_KEY: ${codeloopsKey.substring(0, 8)}...`);
+      } else if (geminiKey) {
+        const keySource = process.env.GOOGLE_GENAI_API_KEY ? 'GOOGLE_GENAI_API_KEY' : 'GEMINI_API_KEY';
+        logger.info(`Using ${keySource}: ${geminiKey.substring(0, 8)}...`);
+      }
+      
       if (!apiKey) {
         const instructionalMessage = `
 🔑 API Key Configuration Required
