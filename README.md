@@ -288,6 +288,12 @@ The Event Horizon system provides 10 powerful MCP tools:
 - **`cleanup_caches`** - Manual cache cleanup and optimization
   - Triggers cache maintenance and expired entry removal
 
+### Diagnostic Tools
+- **`check_multi_critic_health`** - Multi-critic system diagnostics
+  - Reports API configuration, circuit breaker status, system health
+  - Provides troubleshooting recommendations for fallback issues
+  - Helps identify why multi-critic might be failing silently
+
 ### Project Management
 - **`list_projects`** - List all available knowledge graph projects
   - Parameters: projectContext?
@@ -339,6 +345,34 @@ If critics fail with JSON parsing errors:
 - The system now includes automatic retry with exponential backoff
 - JSON responses are sanitized to handle code examples with special characters
 - If issues persist, try reducing `CRITIC_MAX_TOKENS` to avoid truncated responses
+
+### Multi-Critic Diagnostic Tool
+
+If you're experiencing issues with multi-critic feedback (getting basic "approved/rejected" instead of detailed consensus), use the diagnostic tool:
+
+```
+check_multi_critic_health
+```
+
+This tool will:
+- Check your API key configuration
+- Verify circuit breaker status  
+- Report system health metrics
+- Provide specific troubleshooting recommendations
+
+### Common Multi-Critic Issues
+
+**Symptom**: Getting basic "✔ Approved" instead of detailed multi-critic feedback
+
+**Causes & Solutions**:
+1. **Missing API Key**: Ensure `GOOGLE_GENAI_API_KEY` is properly set
+2. **Rate Limiting**: Multi-critic may fall back during high API usage
+3. **Circuit Breaker Open**: System may be protecting against repeated failures
+4. **Network Issues**: Temporary connectivity problems cause fallback
+
+**Response Indicators**:
+- `multiCritic: true` in metadata = Full consensus system ran
+- `multiCriticFallback: true` in metadata = Fallback occurred, check `fallbackReason`
 
 ### Configuration Reference
 

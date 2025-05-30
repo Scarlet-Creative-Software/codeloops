@@ -10,6 +10,20 @@
   - Added `engine.actorCritic.multiCriticDefault` configuration option (defaults to true)
   - This change improves code quality by default while maintaining backward compatibility
 
+### Fixed
+- fix: Enhanced multi-critic fallback mechanism to prevent silent failures
+  - Added detailed error logging when multi-critic system fails with full context
+  - Enhanced single-critic fallback to provide structured markdown feedback instead of basic symbols
+  - Added fallback metadata (`multiCriticFallback: true`, `fallbackReason`) for transparency
+  - Clear indicators distinguish intended single-critic vs fallback scenarios
+- feat: Added `check_multi_critic_health` diagnostic MCP tool
+  - Reports configuration status, circuit breaker state, API key configuration
+  - Provides specific recommendations for resolving multi-critic issues
+  - Helps diagnose why multi-critic might be falling back to single-critic mode
+- fix: Improved response format to ensure users get actionable feedback even during failures
+  - Single-critic responses now include artifact counts, timestamps, and structured recommendations
+  - Enhanced metadata clearly shows system state and provides troubleshooting guidance
+
 ## [0.6.0] - 2025-05-30
 
 ### Phase 2.1: Semantic Query Caching - COMPLETE ✅
