@@ -1,10 +1,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { GeminiConnectionManager, RequestPriority, getConnectionManager } from './GeminiConnectionManager.js';
+import { GeminiConnectionManager, RequestPriority, getConnectionManager, resetConnectionManager } from './GeminiConnectionManager.js';
 
 vi.mock('@google/genai', () => ({
   GoogleGenAI: vi.fn().mockImplementation(() => ({
     models: {
-      generateContent: vi.fn().mockResolvedValue({ text: 'test response' }),
+      generateContent: vi.fn().mockResolvedValue({ 
+        text: 'test response',
+        response: {
+          text: () => 'test response'
+        }
+      }),
     },
     caches: {
       create: vi.fn().mockResolvedValue({ name: 'cache-123' }),
@@ -50,8 +55,9 @@ describe('GeminiConnectionManager', () => {
 
   afterEach(async () => {
     await manager.shutdown();
+    await resetConnectionManager();
     vi.useRealTimers();
-  });
+  }, 15000); // Increase timeout for cleanup
 
   describe('Connection Pooling', () => {
     it('should reuse connections from pool', async () => {
@@ -72,10 +78,13 @@ describe('GeminiConnectionManager', () => {
       
       const promises = operations.map(op => manager.execute(op));
       
-      // Advance time to allow processing
-      vi.advanceTimersByTime(500);
+      // Start processing the promises
+      const allPromises = Promise.all(promises);
       
-      await Promise.all(promises);
+      // Advance time to allow processing
+      await vi.advanceTimersByTimeAsync(1000);
+      
+      await allPromises;
       
       operations.forEach(op => expect(op).toHaveBeenCalled());
     });
@@ -97,10 +106,13 @@ describe('GeminiConnectionManager', () => {
       // Next request should be queued
       const promise4 = manager.execute(operation);
       
-      // Advance time to refill tokens
-      vi.advanceTimersByTime(6000); // 1 minute / 10 requests = 6 seconds per token
+      // Start the 4th request
+      const promise4Started = promise4;
       
-      await promise4;
+      // Advance time to refill tokens
+      await vi.advanceTimersByTimeAsync(6000); // 1 minute / 10 requests = 6 seconds per token
+      
+      await promise4Started;
       expect(operation).toHaveBeenCalledTimes(4);
     });
 
@@ -118,7 +130,7 @@ describe('GeminiConnectionManager', () => {
       const timeoutPromise = manager.execute(operation);
       
       // Advance past queue timeout
-      vi.advanceTimersByTime(6000);
+      await vi.advanceTimersByTimeAsync(6000);
       
       await expect(timeoutPromise).rejects.toThrow('Request timed out in queue');
     });
@@ -188,12 +200,15 @@ describe('GeminiConnectionManager', () => {
       
       const promise = manager.execute(operation);
       
-      // First retry after ~100ms
-      vi.advanceTimersByTime(150);
-      // Second retry after ~200ms (100 * 2)
-      vi.advanceTimersByTime(250);
+      // Start the promise
+      const promiseStarted = promise;
       
-      await promise;
+      // First retry after ~100ms + jitter
+      await vi.advanceTimersByTimeAsync(200);
+      // Second retry after ~200ms (100 * 2) + jitter
+      await vi.advanceTimersByTimeAsync(300);
+      
+      await promiseStarted;
       
       expect(operation).toHaveBeenCalledTimes(3);
     });
@@ -220,10 +235,13 @@ describe('GeminiConnectionManager', () => {
           .then(r => results.push(r)),
       ];
       
-      // Advance time to process queue
-      vi.advanceTimersByTime(20000);
+      // Start all promises
+      const allPromises = Promise.all(promises);
       
-      await Promise.all(promises);
+      // Advance time to process queue
+      await vi.advanceTimersByTimeAsync(20000);
+      
+      await allPromises;
       
       // High priority should be processed first
       expect(results[0]).toBe('high');
@@ -259,9 +277,9 @@ describe('GeminiConnectionManager', () => {
       expect(instance1).toBe(instance2);
     });
 
-    it('should throw if no API key provided initially', () => {
-      // Clear module cache to reset singleton
-      vi.resetModules();
+    it('should throw if no API key provided initially', async () => {
+      // Reset the singleton first
+      await resetConnectionManager();
       
       const originalEnv = process.env;
       process.env = { ...originalEnv };

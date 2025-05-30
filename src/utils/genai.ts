@@ -1,4 +1,4 @@
-import { GoogleGenAI, type Content } from '@google/genai';
+import { type Content } from '@google/genai';
 import { GENAI_THINKING_BUDGET } from '../config.ts';
 import { z } from 'zod';
 import { getConnectionManager, RequestPriority } from './GeminiConnectionManager.ts';
@@ -42,24 +42,7 @@ function getZodExample(schema: z.ZodType<unknown>): unknown {
   return "unknown";
 }
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-
-let ai: GoogleGenAI | null = null;
-
-function getAI(): GoogleGenAI {
-  if (!ai) {
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY or GOOGLE_GENAI_API_KEY environment variable not set');
-    }
-    ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
-  }
-  return ai;
-}
-
-// Export for migration purposes - will be deprecated
-export function getAILegacy(): GoogleGenAI {
-  return getAI();
-}
+// Legacy getAI functions removed - all API calls now go through GeminiConnectionManager
 
 function normalize(input: string | Content[]): Content[] {
   return typeof input === 'string' ? [{ role: 'user', parts: [{ text: input }] }] : input;

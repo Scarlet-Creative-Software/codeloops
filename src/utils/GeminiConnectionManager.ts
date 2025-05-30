@@ -238,6 +238,7 @@ export class GeminiConnectionManager {
   private readonly retryConfig: RetryConfig;
   
   private processing = false;
+  private maintenanceIntervals: NodeJS.Timeout[] = [];
   private metrics = {
     totalRequests: 0,
     successfulRequests: 0,
@@ -298,7 +299,7 @@ export class GeminiConnectionManager {
 
   private startMaintenanceTasks(): void {
     // Clean up idle connections
-    setInterval(() => {
+    const idleInterval = setInterval(() => {
       const now = Date.now();
       for (const conn of this.connectionPool) {
         if (!conn.inUse && now - conn.lastUsed > this.connectionPoolConfig.idleTimeout) {
@@ -308,11 +309,13 @@ export class GeminiConnectionManager {
         }
       }
     }, 60000); // Every minute
+    this.maintenanceIntervals.push(idleInterval);
 
     // Log metrics
-    setInterval(() => {
+    const metricsInterval = setInterval(() => {
       this.logger.info({ metrics: this.metrics }, 'Connection manager metrics');
     }, 300000); // Every 5 minutes
+    this.maintenanceIntervals.push(metricsInterval);
   }
 
   /**
@@ -416,6 +419,9 @@ export class GeminiConnectionManager {
     const startTime = Date.now();
     let lastError: Error | null = null;
     
+    // Increment total requests at the start
+    this.metrics.totalRequests++;
+    
     for (let attempt = 0; attempt <= (retryable ? this.retryConfig.maxRetries : 0); attempt++) {
       try {
         // Execute through circuit breaker
@@ -432,8 +438,7 @@ export class GeminiConnectionManager {
               ),
             ]);
             
-            // Update metrics
-            this.metrics.totalRequests++;
+            // Update success metrics
             this.metrics.successfulRequests++;
             const latency = Date.now() - startTime;
             this.metrics.averageLatency =
@@ -450,10 +455,10 @@ export class GeminiConnectionManager {
         return result;
       } catch (error) {
         lastError = error as Error;
-        this.metrics.failedRequests++;
         
         // Check if error is retryable
         if (!retryable || !this.isRetryableError(error as Error)) {
+          this.metrics.failedRequests++;
           throw error;
         }
         
@@ -478,6 +483,8 @@ export class GeminiConnectionManager {
       }
     }
     
+    // If we get here, the request failed after all retries
+    this.metrics.failedRequests++;
     throw lastError || new Error('Request failed');
   }
 
@@ -541,6 +548,12 @@ export class GeminiConnectionManager {
   async shutdown(): Promise<void> {
     this.logger.info('Shutting down connection manager');
     
+    // Clear all maintenance intervals
+    for (const interval of this.maintenanceIntervals) {
+      clearInterval(interval);
+    }
+    this.maintenanceIntervals = [];
+    
     // Stop processing new requests
     this.processing = false;
     
@@ -550,13 +563,23 @@ export class GeminiConnectionManager {
       request.reject(new Error('Connection manager shutting down'));
     }
     
-    // Wait for active connections to complete
-    await new Promise((resolve) => {
+    // Wait for active connections to complete with timeout
+    const shutdownTimeout = 5000; // 5 seconds
+    const startTime = Date.now();
+    
+    await new Promise<void>((resolve) => {
       const checkInterval = setInterval(() => {
         const activeConnections = this.connectionPool.filter((c) => c.inUse).length;
-        if (activeConnections === 0) {
+        if (activeConnections === 0 || Date.now() - startTime > shutdownTimeout) {
           clearInterval(checkInterval);
-          resolve(undefined);
+          if (activeConnections > 0) {
+            this.logger.warn(`Shutdown timeout reached with ${activeConnections} active connections`);
+            // Force release all connections
+            for (const conn of this.connectionPool) {
+              conn.inUse = false;
+            }
+          }
+          resolve();
         }
       }, 100);
     });
@@ -588,6 +611,9 @@ export function getConnectionManager(apiKey?: string): GeminiConnectionManager {
 }
 
 // For testing purposes
-export function resetConnectionManager(): void {
-  connectionManager = null;
+export async function resetConnectionManager(): Promise<void> {
+  if (connectionManager) {
+    await connectionManager.shutdown();
+    connectionManager = null;
+  }
 }
