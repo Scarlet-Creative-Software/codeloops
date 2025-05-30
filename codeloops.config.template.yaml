@@ -66,7 +66,7 @@ agent:
     # baseUrl: http://localhost:8000
     
     # Request timeout
-    timeout: 120000
+    timeout: 240000
     
     # Maximum retries
     maxRetries: 3
@@ -100,7 +100,7 @@ engine:
     multiCriticDefault: true
     
     # Critic request timeout
-    criticTimeout: 120000
+    criticTimeout: 240000
     
     # Delay between multi-critic calls (ms) to avoid rate limiting
     multiCriticStaggerDelay: 500

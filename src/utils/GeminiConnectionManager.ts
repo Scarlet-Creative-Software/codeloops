@@ -50,7 +50,7 @@ const DEFAULT_CIRCUIT_BREAKER: CircuitBreakerConfig = {
   failureThreshold: 5,
   resetTimeout: 60000, // 1 minute
   halfOpenRequests: 3,
-  monitoringPeriod: 120000, // 2 minutes
+  monitoringPeriod: 240000, // 4 minutes
 };
 
 const DEFAULT_CONNECTION_POOL: ConnectionPoolConfig = {

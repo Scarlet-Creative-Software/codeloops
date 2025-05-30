@@ -408,7 +408,7 @@ Highlight security risks with severity ratings.`,
               })(),
             },
             priority: RequestPriority.HIGH, // Multi-critic requests are high priority
-            timeout: 120000, // 120 seconds timeout for complex multi-critic requests
+            timeout: 240000, // 240 seconds timeout for complex multi-critic requests
             // Note: GeminiConnectionManager handles rate limiting internally
           });
           
@@ -498,7 +498,7 @@ Highlight security risks with severity ratings.`,
               model: 'gemini-2.5-flash-preview-05-20',
               messages: [{ role: 'user', content: prompt }],
               schema: CrossCriticResponseSchema,
-              timeout: 120000, // 120 seconds timeout for cross-critic comparison
+              timeout: 240000, // 240 seconds timeout for cross-critic comparison
             });
             
             return preprocessCriticResponse(rawResponse) as CrossCriticResponse;
@@ -668,7 +668,7 @@ Focus on the most important issues that will improve the code quality.`;
         model: 'gemini-2.5-flash-preview-05-20',
         messages: [{ role: 'user', content: prompt }],
         schema: responseSchema,
-        timeout: 120000, // 120 seconds timeout for final synthesis
+        timeout: 240000, // 240 seconds timeout for final synthesis
         generationConfig: {
           temperature: CRITIC_TEMPERATURES.default,
           maxOutputTokens: (() => {
