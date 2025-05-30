@@ -1,0 +1,258 @@
+{
+  "summary": {
+    "totalOperations": 20,
+    "successfulOperations": 20,
+    "failedOperations": 0,
+    "successRate": 100,
+    "totalDuration": 10.924878000000263,
+    "averageDuration": 0.5462439000000131,
+    "totalMemoryDelta": 1.270904541015625,
+    "fastOperations": 20,
+    "slowOperations": 0
+  },
+  "systemStats": {
+    "indexStats": {
+      "indexed": true,
+      "totalNodes": 1820,
+      "totalProjects": 25,
+      "totalTags": 6,
+      "totalContentTerms": 4226
+    },
+    "cacheStats": {
+      "enabled": false,
+      "message": "Semantic cache not enabled"
+    },
+    "configuration": {
+      "semanticCacheEnabled": false,
+      "cacheStrategy": "lru"
+    }
+  },
+  "detailedMetrics": [
+    {
+      "operation": "Create Node 1",
+      "duration": 2.3887500000000728,
+      "memoryBefore": 38297536,
+      "memoryAfter": 38454248,
+      "memoryDelta": 156712,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Retrieve Node",
+      "duration": 0.043875000000298314,
+      "memoryBefore": 38457552,
+      "memoryAfter": 38458960,
+      "memoryDelta": 1408,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Search by Tag",
+      "duration": 1.9399170000001504,
+      "memoryBefore": 38460096,
+      "memoryAfter": 38681024,
+      "memoryDelta": 220928,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 1
+      }
+    },
+    {
+      "operation": "Search by Query",
+      "duration": 0.2869590000000244,
+      "memoryBefore": 38682160,
+      "memoryAfter": 38720552,
+      "memoryDelta": 38392,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 1
+      }
+    },
+    {
+      "operation": "Create Node 2",
+      "duration": 0.6258750000001783,
+      "memoryBefore": 38721760,
+      "memoryAfter": 38778456,
+      "memoryDelta": 56696,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 3",
+      "duration": 0.37133399999993344,
+      "memoryBefore": 38779584,
+      "memoryAfter": 38836496,
+      "memoryDelta": 56912,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 4",
+      "duration": 0.3949999999999818,
+      "memoryBefore": 38837720,
+      "memoryAfter": 38898584,
+      "memoryDelta": 60864,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 5",
+      "duration": 0.4312920000002123,
+      "memoryBefore": 38899808,
+      "memoryAfter": 38956744,
+      "memoryDelta": 56936,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 6",
+      "duration": 0.5012919999999212,
+      "memoryBefore": 38957968,
+      "memoryAfter": 39014632,
+      "memoryDelta": 56664,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 7",
+      "duration": 0.36895899999990434,
+      "memoryBefore": 39015856,
+      "memoryAfter": 39072720,
+      "memoryDelta": 56864,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 8",
+      "duration": 0.3368749999999636,
+      "memoryBefore": 39073944,
+      "memoryAfter": 39133472,
+      "memoryDelta": 59528,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 9",
+      "duration": 0.49991599999975733,
+      "memoryBefore": 39134696,
+      "memoryAfter": 39210040,
+      "memoryDelta": 75344,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Create Node 10",
+      "duration": 0.5753340000001117,
+      "memoryBefore": 39211288,
+      "memoryAfter": 39268120,
+      "memoryDelta": 56832,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Bulk Search Performance",
+      "duration": 0.12574999999969805,
+      "memoryBefore": 39269312,
+      "memoryAfter": 39280824,
+      "memoryDelta": 11512,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 9
+      }
+    },
+    {
+      "operation": "Resume Recent Nodes",
+      "duration": 0.16900000000032378,
+      "memoryBefore": 39281976,
+      "memoryAfter": 39286384,
+      "memoryDelta": 4408,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 5
+      }
+    },
+    {
+      "operation": "Export All Nodes",
+      "duration": 0.026292000000012195,
+      "memoryBefore": 39287536,
+      "memoryAfter": 39289672,
+      "memoryDelta": 2136,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 10
+      }
+    },
+    {
+      "operation": "Get Cache Stats",
+      "duration": 0.020165999999790074,
+      "memoryBefore": 39292152,
+      "memoryAfter": 39293392,
+      "memoryDelta": 1240,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Get Index Stats",
+      "duration": 0.34320900000011534,
+      "memoryBefore": 39294576,
+      "memoryAfter": 39450984,
+      "memoryDelta": 156408,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Cache Cleanup",
+      "duration": 0.06612499999982901,
+      "memoryBefore": 39452528,
+      "memoryAfter": 39457504,
+      "memoryDelta": 4976,
+      "success": true,
+      "metadata": {
+        "resultType": "object"
+      }
+    },
+    {
+      "operation": "Concurrent Search Operations",
+      "duration": 1.4089579999999842,
+      "memoryBefore": 39459552,
+      "memoryAfter": 39657432,
+      "memoryDelta": 197880,
+      "success": true,
+      "metadata": {
+        "resultType": "array",
+        "length": 5
+      }
+    }
+  ]
+}

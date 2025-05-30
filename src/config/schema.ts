@@ -110,6 +110,30 @@ export const PerformanceConfigSchema = z.object({
     idleTimeout: z.number().default(60000),
     connectionTimeout: z.number().default(5000),
   }).default({}),
+  
+  memoryMapped: z.object({
+    enabled: z.boolean().default(true),
+    
+    // Memory management
+    maxMemoryUsage: z.number().default(512 * 1024 * 1024), // 512MB
+    blockSize: z.number().default(4096), // 4KB
+    cacheEvictionPolicy: z.enum(['lru', 'lfu', 'adaptive']).default('adaptive'),
+    
+    // File management
+    maxFileSize: z.number().default(10 * 1024 * 1024 * 1024), // 10GB
+    compactionThreshold: z.number().default(0.3), // 30% fragmentation
+    compressionEnabled: z.boolean().default(true),
+    
+    // Performance tuning
+    prefetchSize: z.number().default(64), // Number of blocks
+    backgroundFlushInterval: z.number().default(30000), // 30 seconds
+    hotDataThreshold: z.number().default(10), // Access count
+    
+    // Migration settings
+    legacyCompatibility: z.boolean().default(true),
+    migrationBatchSize: z.number().default(1000),
+    backupBeforeMigration: z.boolean().default(true),
+  }).default({}),
 });
 
 // Complete configuration schema
@@ -143,4 +167,7 @@ export const HotReloadableSettings = [
   'performance.semanticCache.similarityThreshold',
   'performance.semanticCache.confidenceThreshold',
   'performance.semanticCache.maxCandidates',
+  'performance.memoryMapped.enabled',
+  'performance.memoryMapped.backgroundFlushInterval',
+  'performance.memoryMapped.hotDataThreshold',
 ];
