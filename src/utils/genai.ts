@@ -1,6 +1,7 @@
 import { GoogleGenAI, type Content } from '@google/genai';
 import { GENAI_THINKING_BUDGET } from '../config.ts';
 import { z } from 'zod';
+import { getConnectionManager, RequestPriority } from './GeminiConnectionManager.ts';
 // Note: Gemini API structured output support
 
 // Helper to generate example JSON from Zod schema
@@ -55,6 +56,11 @@ function getAI(): GoogleGenAI {
   return ai;
 }
 
+// Export for migration purposes - will be deprecated
+export function getAILegacy(): GoogleGenAI {
+  return getAI();
+}
+
 function normalize(input: string | Content[]): Content[] {
   return typeof input === 'string' ? [{ role: 'user', parts: [{ text: input }] }] : input;
 }
@@ -62,18 +68,27 @@ function normalize(input: string | Content[]): Content[] {
 export async function generateGeminiContent({
   model,
   contents,
+  priority = RequestPriority.NORMAL,
 }: {
   model: string;
   contents: string | Content[];
+  priority?: RequestPriority;
 }): Promise<string> {
   const normalized = normalize(contents);
-  const result = await getAI().models.generateContent({
-    model,
-    contents: normalized,
-    config: {
-      thinkingConfig: { thinkingBudget: GENAI_THINKING_BUDGET },
+  const connectionManager = getConnectionManager();
+  
+  const result = await connectionManager.execute(
+    async (client) => {
+      return await client.models.generateContent({
+        model,
+        contents: normalized,
+        config: {
+          thinkingConfig: { thinkingBudget: GENAI_THINKING_BUDGET },
+        },
+      });
     },
-  });
+    { priority }
+  );
 
   return result.text ?? '';
 }
@@ -84,6 +99,7 @@ export async function generateObject<T>({
   schema,
   system,
   generationConfig,
+  priority = RequestPriority.NORMAL,
 }: {
   model: string;
   messages: { role: string; content: string }[];
@@ -95,6 +111,7 @@ export async function generateObject<T>({
     topK?: number;
     topP?: number;
   };
+  priority?: RequestPriority;
 }): Promise<T> {
   // Convert messages to Content format
   const contents: Content[] = [];
@@ -115,11 +132,17 @@ export async function generateObject<T>({
     lastContent.parts[0].text += `\n\nReturn your response as a valid JSON object matching this structure:\n${JSON.stringify(getZodExample(schema), null, 2)}\n\nRespond ONLY with valid JSON, no markdown formatting or explanations.`;
   }
   
-  const result = await getAI().models.generateContent({
-    model,
-    contents,
-    config: generationConfig,
-  });
+  const connectionManager = getConnectionManager();
+  const result = await connectionManager.execute(
+    async (client) => {
+      return await client.models.generateContent({
+        model,
+        contents,
+        config: generationConfig,
+      });
+    },
+    { priority }
+  );
   
   const text = result.text ?? '{}';
   

@@ -10,6 +10,7 @@ import { resolve } from 'path';
 import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
 import { preprocessCriticResponse } from './JsonSanitizer.js';
 import { retryJsonParse } from '../utils/retry.js';
+import { RequestPriority } from '../utils/GeminiConnectionManager.js';
 
 // Schema for structured critic responses
 const CriticResponseSchema = z.object({
@@ -295,13 +296,14 @@ Highlight security risks with severity ratings.`,
               temperature,
               maxOutputTokens: CRITIC_MAX_TOKENS,
             },
+            priority: RequestPriority.HIGH, // Multi-critic requests are high priority
           });
           
           // Preprocess the response to ensure JSON safety
           return preprocessCriticResponse(rawResponse) as CriticResponse;
         }, {
           maxAttempts: 3,
-          onRetry: (error, attempt) => {
+          onRetry: (_error, attempt) => {
             this.logger.warn({ criticId: critic.id, attempt }, 'Retrying critic review due to JSON parsing error');
           }
         });
@@ -363,7 +365,7 @@ Highlight security risks with severity ratings.`,
             return preprocessCriticResponse(rawResponse) as CrossCriticResponse;
           }, {
             maxAttempts: 3,
-            onRetry: (error, attempt) => {
+            onRetry: (_error, attempt) => {
               this.logger.warn({ criticId, attempt }, 'Retrying cross-critic comparison due to JSON parsing error');
             }
           });

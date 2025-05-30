@@ -88,3 +88,39 @@ export const CRITIC_MAX_TOKENS = Number.parseInt(
   process.env.CRITIC_MAX_TOKENS ?? '6000',
   10,
 );
+
+// -----------------------------------------------------------------------------
+// Gemini API Connection Configuration -----------------------------------------
+// -----------------------------------------------------------------------------
+
+/**
+ * Connection pool and resilience settings for Gemini API.
+ * These settings control rate limiting, circuit breaker behavior,
+ * connection pooling, and retry logic.
+ */
+export const GEMINI_CONNECTION_CONFIG = {
+  rateLimit: {
+    requestsPerMinute: Number.parseInt(process.env.GEMINI_RATE_LIMIT_PER_MINUTE ?? '60', 10),
+    requestsPerHour: Number.parseInt(process.env.GEMINI_RATE_LIMIT_PER_HOUR ?? '1000', 10),
+    burstSize: Number.parseInt(process.env.GEMINI_BURST_SIZE ?? '10', 10),
+    queueTimeout: Number.parseInt(process.env.GEMINI_QUEUE_TIMEOUT ?? '30000', 10),
+  },
+  circuitBreaker: {
+    failureThreshold: Number.parseInt(process.env.GEMINI_CIRCUIT_FAILURE_THRESHOLD ?? '5', 10),
+    resetTimeout: Number.parseInt(process.env.GEMINI_CIRCUIT_RESET_TIMEOUT ?? '60000', 10),
+    halfOpenRequests: Number.parseInt(process.env.GEMINI_CIRCUIT_HALF_OPEN_REQUESTS ?? '3', 10),
+    monitoringPeriod: Number.parseInt(process.env.GEMINI_CIRCUIT_MONITORING_PERIOD ?? '120000', 10),
+  },
+  connectionPool: {
+    maxConnections: Number.parseInt(process.env.GEMINI_MAX_CONNECTIONS ?? '5', 10),
+    connectionTimeout: Number.parseInt(process.env.GEMINI_CONNECTION_TIMEOUT ?? '10000', 10),
+    idleTimeout: Number.parseInt(process.env.GEMINI_IDLE_TIMEOUT ?? '300000', 10),
+    keepAlive: process.env.GEMINI_KEEP_ALIVE !== 'false',
+  },
+  retry: {
+    maxRetries: Number.parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
+    baseDelay: Number.parseInt(process.env.GEMINI_RETRY_BASE_DELAY ?? '1000', 10),
+    maxDelay: Number.parseInt(process.env.GEMINI_RETRY_MAX_DELAY ?? '30000', 10),
+    backoffMultiplier: Number.parseFloat(process.env.GEMINI_RETRY_BACKOFF_MULTIPLIER ?? '2'),
+  },
+};
