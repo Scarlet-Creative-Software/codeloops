@@ -4,11 +4,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Source Branch**: This is the Event Horizon fork maintained at https://github.com/Scarlet-Creative-Software/codeloops (dev branch)
 
+## Important SDK Notice
+
+**⚠️ Google GenAI SDK**: Use `@google/genai` (NEW) not `@google/generative-ai` (DEPRECATED - ends Aug 31, 2025). See @genai-node-reference.md for full API context.
+
 ## Important Guidelines
 
 - **Release Notes**: All release notes MUST go in CHANGELOG.md. Never create separate release notes files.
 - **Documentation**: Update existing docs rather than creating new files unless absolutely necessary.
 - **Testing**: Always run tests after making changes (`npm test` and `npm run lint:all`).
+
+## Development Roadmap
+
+Development roadmap documentation is maintained in the `/dev_roadmap` folder (excluded from git):
+
+```
+dev_roadmap/
+├── Development_Roadmap.md       # Main roadmap document
+├── phase1/                      # Phase 1 documentation
+│   ├── PHASE_1_3_COMPLETION_SUMMARY.md
+│   ├── PHASE_1_4_COMPLETION_SUMMARY.md
+│   ├── PHASE_1_COMPLETION_METRICS.md
+│   ├── PHASE_1_COMPLETION_SUMMARY.md
+│   └── ROADMAP_PHASE1_SUMMARY.md
+├── phase2/                      # Phase 2 documentation
+│   ├── PHASE_2_1_SEMANTIC_CACHE_DESIGN.md
+│   ├── PHASE_2_2_IMPLEMENTATION_PLAN.md
+│   ├── PHASE_2_2_MEMORY_MAPPED_STORAGE_DESIGN.md
+│   └── PHASE_2_IMPLEMENTATION_PLAN.md
+├── plans/                       # Implementation plans
+│   └── MULTI_CRITIC_FIX_PLAN.md
+└── summaries/                   # Project summaries
+    └── ROADMAP_ORGANIZATION_SUMMARY.md
+```
+
+**Note**: The `/dev_roadmap` folder is local-only and excluded from version control via `.gitignore`.
 
 ## Commands
 
@@ -55,7 +85,7 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 
 ### MCP Tools Available
 
-- `actor_think` - Propose actions with reasoning (supports feedback:true for multi-critic)
+- `actor_think` - Propose actions with reasoning (multi-critic enabled by default, use feedback:false to disable)
 - `critic_review` - Get Critic feedback on proposals
 - `resume` - Resume from previous session
 - `export` - Export knowledge graph
@@ -81,6 +111,7 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 - `OLLAMA_BASE_URL` - Optional Ollama endpoint
 - `FASTAGENT_BASE_URL` - Optional fast-agent endpoint
 - `CODELOOPS_DATA_DIR` - Optional custom data directory (default: `./data` relative to codeloops installation)
+- `CODELOOPS_MULTI_CRITIC_DEFAULT` - Control default multi-critic behavior (default: "true", set to "false" to disable)
 
 ### Model Configuration
 
@@ -100,7 +131,7 @@ For iterative development, planning, and knowledge management in coding tasks.
     `[Tag.Requirement, Tag.Task, Tag.Design, Tag.Risk, Tag.TaskComplete, Tag.Summary]`  
   • **artifacts** — pass an array of inline objects:  
     `{ "name": "<filename.ext>", "content": "<full or stub file contents>" }`  
-  • **feedback** — set to `true` to enable multi-critic consensus review (3 parallel critics)
+  • **feedback** — controls multi-critic consensus review (defaults to `true` for 3 parallel critics, set to `false` for single critic)
   • **payload hygiene** — to avoid parser errors:  
     1. Keep each `text` ≤ 600 words; split very long analyses across multiple calls.  
     2. Attach code via `artifacts`; do **not** embed triple back-ticks inside the JSON.  

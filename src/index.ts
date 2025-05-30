@@ -130,8 +130,13 @@ async function main() {
    */
   server.tool('actor_think', ACTOR_THINK_DESCRIPTION, ActorThinkSchema, async (args) => {
     const projectName = await loadProjectOrThrow({ logger, args, onProjectLoad: runOnce });
+    
+    // Use configured default for feedback if not explicitly provided
+    const feedback = args.feedback ?? config.engine.actorCritic.multiCriticDefault;
+    
     const node = await engine.actorThink({
       ...args,
+      feedback,
       project: projectName,
     });
     return {

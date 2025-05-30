@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- feat: Multi-critic consensus review is now enabled by default for `actor_think` tool
+  - Provides comprehensive 3-critic analysis (Correctness, Efficiency, Security) by default
+  - Can be disabled per-call by setting `feedback: false` in actor_think
+  - Can be globally disabled via `CODELOOPS_MULTI_CRITIC_DEFAULT=false` environment variable
+  - Added `engine.actorCritic.multiCriticDefault` configuration option (defaults to true)
+  - This change improves code quality by default while maintaining backward compatibility
+
 ## [0.6.0] - 2025-05-30
 
 ### Phase 2.1: Semantic Query Caching - COMPLETE ✅

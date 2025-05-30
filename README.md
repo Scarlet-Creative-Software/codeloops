@@ -28,7 +28,8 @@ While the original CodeLoops provided actor-critic feedback loops, Event Horizon
 - **LRU Eviction**: Least recently used memories are replaced when capacity is reached
 
 ### 🔄 Enhanced Feedback Mechanism
-- **Opt-in Enhancement**: Use `feedback: true` in actor_think to activate multi-critic review
+- **Enabled by Default**: Multi-critic review is now the default behavior for all actor_think calls
+- **Opt-out Available**: Use `feedback: false` to use single-critic mode, or set `CODELOOPS_MULTI_CRITIC_DEFAULT=false`
 - **Graceful Fallback**: Automatically falls back to single-critic mode if consensus fails
 - **Performance Aware**: Only ~1.4x slower than single-critic with 1.5x more detailed analysis
 
@@ -126,26 +127,41 @@ EOF
 
 ## Configuration
 
-### Enable Multi-Critic Consensus
+### Configure Multi-Critic Consensus
 
-When using the `actor_think` tool, set `feedback: true` to activate the enhanced multi-critic system:
+Multi-critic review is now enabled by default for all `actor_think` calls. You can control this behavior:
 
 ```javascript
-// Standard single-critic review (default)
+// Multi-critic consensus review (default)
 actor_think({
   text: "Implement user authentication",
   tags: ["task"],
-  artifacts: [...],
-  feedback: false  // or omit this field
+  artifacts: [...]
+  // feedback: true is the default, no need to specify
 })
 
-// Enhanced multi-critic consensus review
+// Disable multi-critic for a specific call
 actor_think({
-  text: "Implement user authentication",
+  text: "Quick implementation fix",
   tags: ["task"],
   artifacts: [...],
-  feedback: true  // Activates the artificial brain
+  feedback: false  // Use single-critic for this call
 })
+```
+
+#### Global Configuration
+
+To disable multi-critic by default across all calls:
+
+```bash
+# Set environment variable
+export CODELOOPS_MULTI_CRITIC_DEFAULT=false
+
+# Or in your .mcp.json
+"env": {
+  "GOOGLE_GENAI_API_KEY": "your-api-key",
+  "CODELOOPS_MULTI_CRITIC_DEFAULT": "false"
+}
 ```
 
 ### Model Configuration

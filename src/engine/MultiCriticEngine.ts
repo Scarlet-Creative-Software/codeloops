@@ -12,7 +12,7 @@ import { getConfig } from '../config/index.js';
 import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
 import { preprocessCriticResponse } from './JsonSanitizer.js';
 import { retryJsonParse } from '../utils/retry.js';
-import { RequestPriority } from '../utils/GeminiConnectionManager.js';
+import { RequestPriority, resetConnectionManager, getConnectionManager } from '../utils/GeminiConnectionManager.js';
 
 // Schema for structured critic responses
 const CriticResponseSchema = z.object({
@@ -168,6 +168,19 @@ Highlight security risks with severity ratings.`,
     project: string;
   }): Promise<DagNode> {
     try {
+      // Check circuit breaker state before starting
+      try {
+        const connectionManager = getConnectionManager();
+        const metrics = connectionManager.getMetrics();
+        if (metrics.circuitBreakerState === 'OPEN') {
+          this.logger.warn('Circuit breaker is OPEN, resetting connection manager');
+          await resetConnectionManager();
+        }
+      } catch (error) {
+        // Connection manager might not be initialized yet, continue
+        this.logger.debug('Could not check circuit breaker state:', error);
+      }
+      
       // Increment tool call counter for memory expiration
       this.keyMemory.onToolCall();
       
@@ -311,13 +324,21 @@ Highlight security risks with severity ratings.`,
       }
     })();
     
-    const reviewPromises = this.critics.map(async (critic, index) => {
-      // Add staggered delay for each critic except the first
+    // Sequential execution with delays to prevent rate limiting
+    const reviewPromises: Promise<void>[] = [];
+    
+    for (let index = 0; index < this.critics.length; index++) {
+      const critic = this.critics[index];
+      
+      // Add delay between critics (except for the first one)
       if (index > 0) {
-        await new Promise(resolve => setTimeout(resolve, staggerDelay * index));
+        await new Promise(resolve => setTimeout(resolve, staggerDelay));
       }
-      let prompt = '';
-      try {
+      
+      // Launch the critic review asynchronously
+      const reviewPromise = (async () => {
+        let prompt = '';
+        try {
         prompt = this.buildCriticPrompt(critic, context);
         
         // Get temperature based on critic type
@@ -351,20 +372,23 @@ Highlight security risks with severity ratings.`,
           }
         });
 
-        reviews.set(critic.id, response);
-      } catch (error) {
-        this.logger.error({ 
-          error: error instanceof Error ? { 
-            name: error.name, 
-            message: error.message,
-            stack: error.stack?.split('\n').slice(0, 3).join('\n')
-          } : error, 
-          criticId: critic.id,
-          promptPreview: prompt.substring(0, 200) + '...'
-        }, 'Critic review failed');
-        // Continue with other critics even if one fails
-      }
-    });
+          reviews.set(critic.id, response);
+        } catch (error) {
+          this.logger.error({ 
+            error: error instanceof Error ? { 
+              name: error.name, 
+              message: error.message,
+              stack: error.stack?.split('\n').slice(0, 3).join('\n')
+            } : error, 
+            criticId: critic.id,
+            promptPreview: prompt.substring(0, 200) + '...'
+          }, 'Critic review failed');
+          // Continue with other critics even if one fails
+        }
+      })();
+      
+      reviewPromises.push(reviewPromise);
+    }
 
     await Promise.all(reviewPromises);
 
@@ -778,6 +802,15 @@ Focus on constructive synthesis rather than defending your position.`;
    */
   getMemoryStats(): Record<string, { count: number; totalAccesses: number; avgLifespan: number }> {
     return this.keyMemory.getStats();
+  }
+
+  /**
+   * Resets the connection manager and circuit breaker state
+   * Useful for testing and recovering from persistent failures
+   */
+  async resetCircuitBreaker(): Promise<void> {
+    this.logger.info('Resetting Gemini connection manager and circuit breaker');
+    await resetConnectionManager();
   }
 
   /**

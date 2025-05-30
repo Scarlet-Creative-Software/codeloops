@@ -53,13 +53,14 @@ export const ActorThinkSchema = {
         'graph has durable pointers to the exact revision.',
     ),
 
-  /** Optional flag to enable enhanced multi-critic consensus review */
+  /** Optional flag to control enhanced multi-critic consensus review */
   feedback: z
     .boolean()
     .optional()
     .describe(
-      'When true, triggers a comprehensive 3-critic consensus review with specialized analysis. ' +
-        'Use for complex tasks requiring deeper validation. Default: false.',
+      'Controls whether to use the comprehensive 3-critic consensus review with specialized analysis. ' +
+        'Defaults to true (enabled) but can be set to false to use single-critic review. ' +
+        'The default can be changed via CODELOOPS_MULTI_CRITIC_DEFAULT environment variable.',
     ),
 };
 

@@ -9,3 +9,4 @@ agents/**/fastagent.config.yaml
 agents/**/fastagent.jsonl
 logs/*.log
 logs/*.log*
+dev_roadmap/

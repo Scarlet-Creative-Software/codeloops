@@ -58,6 +58,7 @@ export const EngineConfigSchema = z.object({
     maxIterations: z.number().default(10),
     convergenceThreshold: z.number().default(0.95),
     enableMultiCritic: z.boolean().default(true),
+    multiCriticDefault: z.boolean().default(true), // Default value for feedback parameter
     criticTimeout: z.number().default(120000),
     multiCriticStaggerDelay: z.number().default(500), // ms between critic calls
   }).default({}),
@@ -161,6 +162,7 @@ export const HotReloadableSettings = [
   'model.gemini.topP',
   'model.gemini.topK',
   'engine.actorCritic.enableMultiCritic',
+  'engine.actorCritic.multiCriticDefault',
   'engine.knowledgeGraph.enableCycleDetection',
   'performance.cache.enabled',
   'performance.cache.ttl',

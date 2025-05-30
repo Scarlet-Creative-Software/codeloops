@@ -149,6 +149,7 @@ export class ConfigurationManager extends EventEmitter {
       { env: 'GOOGLE_GENAI_API_KEY', path: 'model.gemini.apiKey' },
       { env: 'OLLAMA_BASE_URL', path: 'model.ollama.baseUrl' },
       { env: 'FASTAGENT_BASE_URL', path: 'agent.critic.baseUrl' },
+      { env: 'CODELOOPS_MULTI_CRITIC_DEFAULT', path: 'engine.actorCritic.multiCriticDefault' },
       // Add more mappings as needed
     ];
 

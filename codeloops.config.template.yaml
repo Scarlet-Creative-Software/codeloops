@@ -95,8 +95,15 @@ engine:
     # Enable multi-critic consensus system
     enableMultiCritic: true
     
+    # Default value for multi-critic feedback (can be overridden per-call)
+    # Set to false to use single-critic by default
+    multiCriticDefault: true
+    
     # Critic request timeout
     criticTimeout: 120000
+    
+    # Delay between multi-critic calls (ms) to avoid rate limiting
+    multiCriticStaggerDelay: 500
   
   # Knowledge graph settings
   knowledgeGraph:
@@ -138,6 +145,54 @@ performance:
     
     # Cache strategy: lru, lfu, fifo
     strategy: lru
+  
+  # Semantic cache settings (Phase 2.1)
+  semanticCache:
+    # Enable semantic caching for similar queries
+    enabled: true
+    
+    # Embedding model for query vectorization
+    embeddingModel: text-embedding-004
+    
+    # Similarity threshold for cache hits (0.0-1.0)
+    similarityThreshold: 0.85
+    
+    # Confidence threshold for accepting cache results
+    confidenceThreshold: 0.90
+    
+    # Maximum candidates to consider in similarity search
+    maxCandidates: 10
+    
+    # Cache size (number of entries)
+    cacheSize: 10000
+    
+    # Cache TTL in milliseconds (24 hours)
+    ttl: 86400000
+    
+    # Cleanup configuration
+    cleanup:
+      # Enable automatic cleanup
+      enabled: true
+      
+      # Cleanup interval in milliseconds (1 hour)
+      intervalMs: 3600000
+      
+      # Maximum age for cache entries in milliseconds (7 days)
+      maxAge: 604800000
+    
+    # HNSW index configuration
+    hnsw:
+      # Construction parameter (higher = better quality, slower build)
+      efConstruction: 200
+      
+      # Search parameter (higher = better quality, slower search)
+      efSearch: 50
+      
+      # Maximum bidirectional connections per node
+      maxConnections: 16
+      
+      # Similarity metric: cosine, euclidean, dot
+      similarityMetric: cosine
   
   # Connection pool settings
   connectionPool:

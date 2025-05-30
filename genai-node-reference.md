@@ -2,7 +2,20 @@
 
 The Google Generative AI SDK for Node.js (`@google/genai`) provides a convenient way to integrate Google's powerful generative AI models (like Gemini) into your JavaScript or TypeScript applications. This SDK offers a unified interface for accessing these models via the Gemini API and Vertex AI.
 
-**Current Date:** Thursday, May 22, 2025
+**Current Date:** Friday, May 30, 2025
+
+## IMPORTANT SDK MIGRATION NOTICE
+
+**BREAKING CHANGE**: As of 2025, Google has migrated to a new unified SDK. The old `@google/generative-ai` SDK is **DEPRECATED** and support will end on **August 31, 2025**.
+
+- ❌ **Old SDK (DEPRECATED)**: `@google/generative-ai` 
+- ✅ **New SDK (CURRENT)**: `@google/genai`
+
+### Migration Summary
+- **Old**: `model.generateContent()` 
+- **New**: `ai.models.generateContent()`
+- **Response**: `result.text` (property, not method in new SDK)
+- **Version**: Latest is v1.2.0 (as of May 30, 2025)
 
 ## 1. Installation
 
@@ -97,10 +110,38 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 // Or for a specific version, e.g., if using Vertex AI model versioning:
 // const model = genAI.getGenerativeModel({ model: "projects/my-project/locations/us-central1/publishers/google/models/gemini-1.5-flash-001" });
 5. Key Operations
-5.1. Generating Content (Single-Turn)
 
-For simple prompt-response interactions.
+## ⚠️ CURRENT SDK PATTERNS (v1.2.0)
 
+### 5.1. New Unified API Pattern
+
+The new @google/genai SDK uses a unified pattern through the main instance:
+
+```javascript
+import { GoogleGenAI } from '@google/genai';
+
+const ai = new GoogleGenAI({ apiKey: 'YOUR_API_KEY' });
+
+// NEW PATTERN: Use ai.models.generateContent()
+const response = await ai.models.generateContent({
+  model: 'gemini-2.5-flash-preview-05-20',
+  contents: 'Your prompt here',
+  config: {
+    // Generation config here
+    temperature: 0.7,
+    maxOutputTokens: 2048
+  }
+});
+
+// NEW: Response is a property, not a method
+const text = response.text; // NOT response.text()
+```
+
+### 5.2. Legacy Pattern (Still Supported)
+
+The old pattern through model instances still works but may be deprecated:
+
+```javascript
 async function runTextGeneration() {
  try {
    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
@@ -108,7 +149,7 @@ async function runTextGeneration() {
 
    const result = await model.generateContent(prompt);
    const response = result.response;
-   const text = response.text();
+   const text = response.text(); // OLD: method call
    console.log(text);
  } catch (error) {
    console.error("Error generating content:", error);
