@@ -9,8 +9,8 @@ import { Tag } from './src/engine/tags.js';
 import { readFileSync } from 'fs';
 import { getInstance as getLogger } from './src/logger.js';
 
-// Set up the API key
-process.env.GOOGLE_GENAI_API_KEY = 'AIzaSyBGu4ZEYjjnPBLzoc-O2XUdRFceNWPeAeU';
+// SECURITY NOTE: API key removed for security reasons
+// Set GOOGLE_GENAI_API_KEY environment variable before running this test
 
 async function testMultiCritic() {
   console.log('Testing Multi-Critic Consensus System...\n');

@@ -9,11 +9,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { KnowledgeGraphManager } from '../../src/engine/KnowledgeGraph.ts';
-import { CodeLoopsLogger, createLogger } from '../../src/logger.ts';
-import { PerformanceConfig } from '../../src/config/schema.ts';
-import { Tag } from '../../src/engine/tags.ts';
-import { DagNode } from '../../src/engine/KnowledgeGraph.ts';
+import { KnowledgeGraphManager } from '../../src/engine/KnowledgeGraph.js';
+import { CodeLoopsLogger, createLogger } from '../../src/logger.js';
+import { PerformanceConfig } from '../../src/config/schema.js';
+import { Tag } from '../../src/engine/tags.js';
+import { DagNode } from '../../src/engine/KnowledgeGraph.js';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';

@@ -90,15 +90,52 @@ export class Critic {
       }
     }
 
+    // Generate more detailed feedback for single critic mode
+    const generateDetailedFeedback = (verdict: DagNode['verdict'], reason?: string, target?: DagNode) => {
+      const timestamp = new Date().toISOString();
+      const artifactCount = target?.artifacts?.length || 0;
+      const thoughtLength = target?.thought?.length || 0;
+      
+      let feedback = `## Single Critic Review\n\n`;
+      
+      if (verdict === 'approved') {
+        feedback += `### ✅ **APPROVED**\n\n`;
+        feedback += `**Assessment**: This thought meets the basic requirements and can proceed.\n\n`;
+        feedback += `**Details**:\n`;
+        feedback += `- Thought length: ${thoughtLength} characters\n`;
+        feedback += `- Artifacts provided: ${artifactCount}\n`;
+        feedback += `- Review timestamp: ${timestamp}\n`;
+        if (reason) {
+          feedback += `- Additional notes: ${reason}\n`;
+        }
+        feedback += `\n**Note**: This was a single-critic review. For more detailed consensus analysis, use \`feedback: true\`.\n`;
+      } else if (verdict === 'needs_revision') {
+        feedback += `### ⚠️ **NEEDS REVISION**\n\n`;
+        feedback += `**Issues identified**:\n`;
+        if (reason) {
+          feedback += `- ${reason}\n`;
+        }
+        feedback += `\n**Next steps**: Please address the issues above and resubmit.\n`;
+        feedback += `\n**Note**: This was a single-critic review. For more detailed analysis, use \`feedback: true\`.\n`;
+      } else {
+        feedback += `### ❌ **REJECTED**\n\n`;
+        feedback += `**Critical issues**:\n`;
+        if (reason) {
+          feedback += `- ${reason}\n`;
+        }
+        feedback += `\n**Action required**: Significant changes needed before this can be approved.\n`;
+        feedback += `\n**Note**: This was a single-critic review. For more detailed analysis, use \`feedback: true\`.\n`;
+      }
+      
+      return feedback;
+    };
+
+    const detailedThought = generateDetailedFeedback(verdict, reason, target as DagNode);
+
     const criticNode: DagNode = {
       id: uuid(),
       project,
-      thought:
-        verdict === 'approved'
-          ? '✔ Approved'
-          : verdict === 'needs_revision'
-            ? '✏ Needs revision'
-            : '✗ Rejected',
+      thought: detailedThought,
       role: 'critic',
       verdict,
       ...(reason && { verdictReason: reason }),
@@ -109,6 +146,12 @@ export class Critic {
       artifacts: [],
       createdAt: '', // Will be set by appendEntity
       projectContext,
+      metadata: {
+        singleCritic: true,
+        reviewType: 'basic',
+        artifactCount: (target as DagNode)?.artifacts?.length || 0,
+        reviewTimestamp: new Date().toISOString(),
+      },
     };
 
     // Update the target node's children to include this critic node

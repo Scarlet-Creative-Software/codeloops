@@ -4,8 +4,8 @@
  * Test script for the new configuration management system
  */
 
-import { ConfigurationManager } from '../src/config/ConfigurationManager.js';
-import { ConfigurationExporter } from '../src/config/ConfigurationExporter.js';
+import { ConfigurationManager } from '../../src/config/ConfigurationManager.js';
+import { ConfigurationExporter } from '../../src/config/ConfigurationExporter.js';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';

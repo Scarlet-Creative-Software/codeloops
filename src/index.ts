@@ -461,6 +461,92 @@ async function main() {
     },
   );
 
+  /** check_multi_critic_health – Diagnostic tool to check multi-critic system status */
+  server.tool(
+    'check_multi_critic_health',
+    'Check the health and configuration of the multi-critic consensus system',
+    {},
+    async () => {
+      logger.info('[check_multi_critic_health] Checking multi-critic system health');
+      
+      try {
+        // Get memory stats from multi-critic engine
+        const memoryStats = engine.multiCriticEngine?.getMemoryStats();
+        
+        // Check circuit breaker status if available
+        let circuitBreakerStatus = 'unknown';
+        try {
+          const connectionManager = await import('../src/utils/GeminiConnectionManager.ts');
+          const manager = connectionManager.getConnectionManager();
+          const metrics = manager.getMetrics();
+          circuitBreakerStatus = metrics.circuitBreakerState;
+        } catch {
+          circuitBreakerStatus = 'not available';
+        }
+
+        const healthCheck = {
+          timestamp: new Date().toISOString(),
+          status: 'healthy',
+          configuration: {
+            multiCriticEnabled: config.engine.actorCritic.enableMultiCritic,
+            multiCriticDefault: config.engine.actorCritic.multiCriticDefault,
+            criticTimeout: config.engine.actorCritic.criticTimeout,
+            staggerDelay: config.engine.actorCritic.multiCriticStaggerDelay,
+          },
+          systemHealth: {
+            circuitBreakerStatus,
+            keyMemoryStats: memoryStats,
+            apiKeyConfigured: !!(process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY),
+          },
+          recommendations: [] as string[],
+        };
+
+        // Add recommendations based on health check
+        if (!healthCheck.systemHealth.apiKeyConfigured) {
+          healthCheck.status = 'warning';
+          healthCheck.recommendations.push('API key not configured - multi-critic system will fail');
+        }
+        
+        if (circuitBreakerStatus === 'OPEN') {
+          healthCheck.status = 'degraded';
+          healthCheck.recommendations.push('Circuit breaker is OPEN - API calls are being blocked');
+        }
+
+        if (!config.engine.actorCritic.enableMultiCritic) {
+          healthCheck.status = 'disabled';
+          healthCheck.recommendations.push('Multi-critic is disabled in configuration');
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: safeStringify(healthCheck),
+            },
+          ],
+        };
+      } catch (error) {
+        logger.error('[check_multi_critic_health] Health check failed', { 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: safeStringify({
+                timestamp: new Date().toISOString(),
+                status: 'error',
+                error: 'Health check failed',
+                details: error instanceof Error ? error.message : String(error)
+              }),
+            },
+          ],
+        };
+      }
+    },
+  );
+
   // ------------------------------------------------------------------
   // Transport: stdio JSON‑over‑MCP -----------------------------------
   // ------------------------------------------------------------------

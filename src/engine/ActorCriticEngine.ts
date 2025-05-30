@@ -5,6 +5,7 @@ import { SummarizationAgent } from '../agents/Summarize.ts';
 import { MultiCriticEngine } from './MultiCriticEngine.ts';
 import { z } from 'zod';
 import { TagEnum } from './tags.ts';
+import { getInstance as getLogger } from '../logger.ts';
 // -----------------------------------------------------------------------------
 // Actor–Critic engine ----------------------------------------------------------
 // -----------------------------------------------------------------------------
@@ -68,7 +69,7 @@ export const ActorThinkSchemaZodObject = z.object(ActorThinkSchema);
 export type ActorThinkInput = z.infer<typeof ActorThinkSchemaZodObject>;
 
 export class ActorCriticEngine {
-  private multiCriticEngine: MultiCriticEngine;
+  public readonly multiCriticEngine: MultiCriticEngine;
 
   constructor(
     private readonly kg: KnowledgeGraphManager,
@@ -102,8 +103,38 @@ export class ActorCriticEngine {
         });
         return criticNode;
       } catch (error) {
-        // Fall back to single critic on failure
-        console.error('Multi-critic review failed, falling back to single critic:', error);
+        // Enhanced logging for multi-critic failures
+        const logger = getLogger();
+        logger.error({
+          error: error instanceof Error ? {
+            name: error.name,
+            message: error.message,
+            stack: error.stack?.split('\n').slice(0, 5).join('\n')
+          } : error,
+          actorNodeId: node.id,
+          project: input.project,
+          feedback: input.feedback
+        }, 'Multi-critic review failed, falling back to single critic');
+        
+        // Fall back to enhanced single critic with metadata about the failure
+        const criticNode = await this.criticReview({
+          actorNodeId: node.id,
+          projectContext: input.projectContext,
+          project: input.project,
+        });
+        
+        // Add metadata to indicate this was a fallback from multi-critic
+        if (criticNode.metadata) {
+          criticNode.metadata.multiCriticFallback = true;
+          criticNode.metadata.fallbackReason = error instanceof Error ? error.message : String(error);
+        } else {
+          criticNode.metadata = {
+            multiCriticFallback: true,
+            fallbackReason: error instanceof Error ? error.message : String(error)
+          };
+        }
+        
+        return criticNode;
       }
     }
 

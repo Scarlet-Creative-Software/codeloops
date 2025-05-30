@@ -97,6 +97,7 @@ This is a Model Context Protocol (MCP) server implementing an Actor-Critic reinf
 - `list_projects` - List all available projects
 - `get_cache_stats` - Get semantic cache performance metrics (Phase 2.1)
 - `cleanup_caches` - Manual cache cleanup and optimization (Phase 2.1)
+- `check_multi_critic_health` - Diagnostic tool to check multi-critic system status and health
 
 ### Testing
 
@@ -363,6 +364,38 @@ claude mcp add fetch uvx mcp-server-fetch
 ```
 
 ### Troubleshooting Codeloops MCP
+
+#### Multi-Critic System Not Providing Rich Feedback
+
+If you're getting basic "approved/rejected" feedback instead of detailed multi-critic consensus analysis:
+
+1. **Check if multi-critic is actually running**:
+   ```bash
+   # Use the diagnostic tool
+   check_multi_critic_health
+   ```
+
+2. **Common causes of fallback to single-critic**:
+   - API rate limiting (Gemini API limits on parallel requests)
+   - Missing or invalid API key configuration
+   - Network connectivity issues
+   - Circuit breaker in OPEN state (too many API failures)
+   - JSON parsing errors in structured responses
+
+3. **How to identify the issue**:
+   - Look for `multiCriticFallback: true` in the response metadata
+   - Check the `fallbackReason` field for error details
+   - Review logs for multi-critic failure messages
+   - Verify `metadata.multiCritic: true` exists for successful multi-critic runs
+
+4. **Solutions**:
+   - Ensure `GOOGLE_GENAI_API_KEY` environment variable is set
+   - Check your API quota and rate limits
+   - Wait a few minutes if circuit breaker is OPEN
+   - Use `feedback: true` explicitly to force multi-critic mode
+   - Check network connectivity to Google APIs
+
+#### Server Crashes with `Cannot read properties of undefined`
 
 If the codeloops MCP server crashes with `Cannot read properties of undefined` when calling `actor_think`:
 
