@@ -8,6 +8,7 @@ import { dataDir } from '../config.ts';
 import { CodeLoopsLogger } from '../logger.ts';
 import { ActorThinkInput } from './ActorCriticEngine.ts';
 import { TagEnum, Tag } from './tags.ts';
+import { KnowledgeGraphIndexSystem } from './IndexSystem.ts';
 
 // -----------------------------------------------------------------------------
 // Interfaces & Schemas --------------------------------------------------------
@@ -62,6 +63,8 @@ export class KnowledgeGraphManager {
   private hasLoggedParseError = false;
   private nodeCache = new Map<string, DagNode | null>();
   private cacheTimeout = 30000; // 30 seconds
+  private indexSystem: KnowledgeGraphIndexSystem;
+  private isIndexInitialized = false;
 
   // Schema for validating DagNode entries
   private static DagNodeSchema = z.object({
@@ -86,11 +89,13 @@ export class KnowledgeGraphManager {
 
   constructor(logger: CodeLoopsLogger) {
     this.logger = logger;
+    this.indexSystem = new KnowledgeGraphIndexSystem();
   }
 
   async init() {
     this.logger.info(`[KnowledgeGraphManager] Initializing from ${this.logFilePath}`);
     await this.loadLog();
+    await this.initializeIndex();
   }
 
   private async loadLog() {
@@ -100,6 +105,45 @@ export class KnowledgeGraphManager {
       await fs.writeFile(this.logFilePath, '');
       return;
     }
+  }
+
+  /**
+   * Initialize the B-tree index system by reading all existing nodes
+   * This provides O(log n) performance for subsequent operations
+   */
+  private async initializeIndex() {
+    if (this.isIndexInitialized) return;
+    
+    const startTime = Date.now();
+    this.logger.info('[KnowledgeGraphManager] Building B-tree indices...');
+    
+    const fileStream = fsSync.createReadStream(this.logFilePath);
+    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+    
+    let nodeCount = 0;
+    try {
+      for await (const line of rl) {
+        const node = this.parseDagNode(line);
+        if (node) {
+          this.indexSystem.indexNode(node);
+          nodeCount++;
+        }
+      }
+    } finally {
+      rl.close();
+      fileStream.close();
+    }
+    
+    const duration = Date.now() - startTime;
+    const stats = this.indexSystem.getStats();
+    
+    this.logger.info(
+      `[KnowledgeGraphManager] Index built successfully: ${nodeCount} nodes, ` +
+      `${stats.totalProjects} projects, ${stats.totalTags} tags, ` +
+      `${stats.totalContentTerms} content terms in ${duration}ms`
+    );
+    
+    this.isIndexInitialized = true;
   }
 
   private parseDagNode(line: string): DagNode | null {
@@ -144,6 +188,12 @@ export class KnowledgeGraphManager {
       try {
         await lock(this.logFilePath, { retries: 0 });
         await fs.appendFile(this.logFilePath, line, 'utf8');
+        
+        // Update index system after successful write
+        if (this.isIndexInitialized) {
+          this.indexSystem.indexNode(entity);
+        }
+        
         return;
       } catch (e: unknown) {
         err = e as Error;
@@ -217,6 +267,12 @@ export class KnowledgeGraphManager {
   }
 
   async getNode(id: string): Promise<DagNode | undefined> {
+    // Use index system if available for O(log n) lookup
+    if (this.isIndexInitialized) {
+      return this.indexSystem.getNode(id);
+    }
+    
+    // Fallback to linear scan for backward compatibility
     const fileStream = fsSync.createReadStream(this.logFilePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
     let found: DagNode | undefined;
@@ -275,6 +331,12 @@ export class KnowledgeGraphManager {
   }
 
   async allDagNodes(project: string): Promise<DagNode[]> {
+    // Use index system if available for O(log n + k) lookup
+    if (this.isIndexInitialized) {
+      return this.indexSystem.getNodesByProject(project);
+    }
+    
+    // Fallback to streaming for backward compatibility
     const nodes: DagNode[] = [];
     for await (const node of this.streamDagNodes(project)) {
       nodes.push(node);
@@ -295,12 +357,29 @@ export class KnowledgeGraphManager {
     filterFn?: (node: DagNode) => boolean;
     limit?: number;
   }): Promise<DagNode[]> {
-    // If we have a limit and no complex filter, use efficient reverse reading
-    if (limit && !filterFn) {
-      return this.getRecentNodes(project, limit);
+    // Use index system for simple cases
+    if (this.isIndexInitialized) {
+      // If we have a limit and no complex filter, use efficient indexed lookup
+      if (limit && !filterFn) {
+        return this.indexSystem.getRecentNodes(project, limit);
+      }
+      
+      // For simple project-based queries, use indexed lookup then filter
+      if (!filterFn || limit) {
+        let nodes = this.indexSystem.getNodesByProject(project);
+        if (filterFn) {
+          nodes = nodes.filter(filterFn);
+        }
+        if (limit) {
+          // Sort by creation date (oldest first to maintain insertion order)
+          nodes.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+          nodes = nodes.slice(-limit); // Take the last N nodes (most recent in chronological order)
+        }
+        return nodes;
+      }
     }
 
-    // Fallback to full scan for complex queries
+    // Fallback to file scanning for complex queries or when index not ready
     const nodes: DagNode[] = [];
     const fileStream = fsSync.createReadStream(this.logFilePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -380,6 +459,43 @@ export class KnowledgeGraphManager {
     query?: string;
     limit?: number;
   }): Promise<DagNode[]> {
+    // Use index system for optimized search
+    if (this.isIndexInitialized) {
+      let results: DagNode[] = [];
+      
+      // Start with project nodes
+      const projectNodes = this.indexSystem.getNodesByProject(project);
+      
+      // Apply tag filter if specified
+      if (tags && tags.length > 0) {
+        const taggedNodes = this.indexSystem.getNodesByTags(tags);
+        // Intersection of project and tagged nodes
+        const projectNodeIds = new Set(projectNodes.map(n => n.id));
+        results = taggedNodes.filter(node => projectNodeIds.has(node.id));
+      } else {
+        results = projectNodes;
+      }
+      
+      // Apply content search if specified
+      if (query) {
+        const contentNodes = this.indexSystem.searchContent(query);
+        const currentNodeIds = new Set(results.map(n => n.id));
+        results = contentNodes.filter(node => 
+          currentNodeIds.has(node.id) && node.project === project
+        );
+      }
+      
+      // Apply limit
+      if (limit) {
+        // Sort by creation date (most recent first)
+        results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+        results = results.slice(0, limit);
+      }
+      
+      return results;
+    }
+    
+    // Fallback to linear search
     const q = query?.toLowerCase();
     return this.export({
       project,
@@ -424,6 +540,12 @@ export class KnowledgeGraphManager {
   }
 
   async listProjects(): Promise<string[]> {
+    // Use index system for O(log n) lookup
+    if (this.isIndexInitialized) {
+      return this.indexSystem.getAllProjects();
+    }
+    
+    // Fallback to linear scan
     const projects = new Set<string>();
     const fileStream = fsSync.createReadStream(this.logFilePath);
     const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
@@ -439,5 +561,30 @@ export class KnowledgeGraphManager {
       rl.close();
       fileStream.close();
     }
+  }
+
+  /**
+   * Get index system statistics for monitoring and debugging
+   */
+  getIndexStats() {
+    if (!this.isIndexInitialized) {
+      return { indexed: false, message: 'Index not initialized' };
+    }
+    
+    return {
+      indexed: true,
+      ...this.indexSystem.getStats()
+    };
+  }
+
+  /**
+   * Force rebuild of the index system
+   * Useful for recovery or after manual file modifications
+   */
+  async rebuildIndex() {
+    this.logger.info('[KnowledgeGraphManager] Rebuilding index...');
+    this.indexSystem.clear();
+    this.isIndexInitialized = false;
+    await this.initializeIndex();
   }
 }
