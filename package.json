@@ -1,6 +1,6 @@
 {
   "name": "codeloops",
-  "version": "0.3.6",
+  "version": "0.4.3",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -37,12 +37,12 @@
     "globals": "^16.1.0",
     "husky": "^9.1.7",
     "tsx": "^4.19.4",
-    "typescript-eslint": "^8.32.1",
+    "typescript-eslint": "^8.33.0",
     "vitest": "^3.1.2"
   },
   "dependencies": {
-    "@google/genai": "^1.0.1",
-    "@modelcontextprotocol/sdk": "^1.11.0",
+    "@google/genai": "^1.2.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
     "@tsconfig/node22": "^22.0.1",
     "await-to-js": "^3.0.0",
     "chalk": "^5.4.1",

@@ -50,10 +50,10 @@ Adjust based on code complexity:
 export CRITIC_MAX_TOKENS=1000
 
 # For complex reviews (default)
-export CRITIC_MAX_TOKENS=2000
+export CRITIC_MAX_TOKENS=6000
 
-# For architectural reviews
-export CRITIC_MAX_TOKENS=3000
+# For detailed architectural reviews
+export CRITIC_MAX_TOKENS=8000
 ```
 
 ## Effective Usage Patterns

@@ -5,7 +5,7 @@ import { Tag } from './tags.js';
 import { getInstance as getLogger } from '../logger.js';
 import { generateObject } from '../utils/genai.js';
 import { KeyMemorySystem } from './KeyMemorySystem.js';
-import { readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 import { resolve } from 'path';
 import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
 import { preprocessCriticResponse } from './JsonSanitizer.js';
@@ -749,13 +749,87 @@ Focus on constructive synthesis rather than defending your position.`;
           try {
             // Resolve the path relative to the project root
             const fullPath = resolve(artifact.path);
-            fileContent = readFileSync(fullPath, 'utf-8');
-          } catch (fsError) {
-            // If file doesn't exist or can't be read, use placeholder
-            contents.set(artifact.path, `[File not found or cannot be read: ${artifact.path}]`);
-            this.logger.warn({ path: artifact.path, error: fsError }, 'Could not read artifact file');
+            fileContent = await readFile(fullPath, 'utf-8');
+          } catch (fsError: unknown) {
+            // Enhanced error handling with specific error types
+            let errorMessage: string;
+            
+            // Type guard to check if error has NodeJS.ErrnoException properties
+            const isNodeError = (err: unknown): err is NodeJS.ErrnoException => {
+              return err instanceof Error && 'code' in err;
+            };
+            
+            if (isNodeError(fsError)) {
+              if (fsError.code === 'ENOENT') {
+                errorMessage = `[File not found: ${artifact.path}]`;
+                this.logger.warn({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code 
+                }, 'Artifact file does not exist');
+              } else if (fsError.code === 'EACCES') {
+                errorMessage = `[Permission denied: ${artifact.path}]`;
+                this.logger.error({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code 
+                }, 'Permission denied when reading artifact file');
+              } else if (fsError.code === 'EISDIR') {
+                errorMessage = `[Path is a directory: ${artifact.path}]`;
+                this.logger.warn({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code 
+                }, 'Artifact path points to a directory, not a file');
+              } else if (fsError.code === 'EMFILE' || fsError.code === 'ENFILE') {
+                errorMessage = `[Too many open files, retry later: ${artifact.path}]`;
+                this.logger.error({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code 
+                }, 'File descriptor limit reached when reading artifact');
+              } else if (fsError.code === 'ENOTDIR') {
+                errorMessage = `[Invalid path (not a directory in path): ${artifact.path}]`;
+                this.logger.warn({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code 
+                }, 'Invalid path structure for artifact file');
+              } else {
+                // Generic filesystem error with code
+                errorMessage = `[Filesystem error (${fsError.code || 'unknown'}): ${artifact.path}]`;
+                this.logger.error({ 
+                  path: artifact.path, 
+                  fullPath: resolve(artifact.path),
+                  errorCode: fsError.code,
+                  errorMessage: fsError.message,
+                  errorName: fsError.name
+                }, 'Unexpected filesystem error when reading artifact');
+              }
+            } else {
+              // Non-Node.js error
+              const errorMsg = fsError instanceof Error ? fsError.message : String(fsError);
+              errorMessage = `[Unknown error: ${artifact.path}]`;
+              this.logger.error({ 
+                path: artifact.path, 
+                fullPath: resolve(artifact.path),
+                error: errorMsg
+              }, 'Non-filesystem error when reading artifact');
+            }
+            
+            contents.set(artifact.path, errorMessage);
             continue;
           }
+        }
+        
+        // Validate that fileContent is a string
+        if (typeof fileContent !== 'string') {
+          this.logger.error({ 
+            path: artifact.path, 
+            contentType: typeof fileContent 
+          }, 'Artifact content is not a string');
+          contents.set(artifact.path, `[Invalid content type for: ${artifact.path}]`);
+          continue;
         }
         
         // Split into lines and truncate if necessary
@@ -763,13 +837,38 @@ Focus on constructive synthesis rather than defending your position.`;
         if (lines.length > 3000) {
           const truncatedContent = lines.slice(0, 3000).join('\n');
           contents.set(artifact.path, truncatedContent + '\n\n... (truncated after 3000 lines)');
-          this.logger.info({ path: artifact.path, totalLines: lines.length }, 'Truncated large file for critic review');
+          this.logger.info({ 
+            path: artifact.path, 
+            totalLines: lines.length,
+            truncatedLines: 3000 
+          }, 'Truncated large file for critic review');
         } else {
           contents.set(artifact.path, fileContent);
+          this.logger.debug({ 
+            path: artifact.path, 
+            lines: lines.length,
+            sizeBytes: fileContent.length 
+          }, 'Successfully loaded artifact content');
         }
-      } catch (error) {
-        this.logger.error({ path: artifact.path, error }, 'Error loading artifact content');
-        contents.set(artifact.path, `[Error loading file: ${artifact.path}]`);
+      } catch (error: unknown) {
+        // Catch-all for any unexpected errors during processing
+        const errorInfo = error instanceof Error 
+          ? {
+              name: error.name,
+              message: error.message,
+              stack: error.stack?.split('\n').slice(0, 3).join('\n') || 'No stack trace'
+            }
+          : {
+              name: 'Unknown',
+              message: String(error),
+              stack: 'No stack trace'
+            };
+            
+        this.logger.error({ 
+          path: artifact.path, 
+          error: errorInfo
+        }, 'Unexpected error during artifact content processing');
+        contents.set(artifact.path, `[Processing error: ${artifact.path}]`);
       }
     }
 

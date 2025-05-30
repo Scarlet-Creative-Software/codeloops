@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-05-30T01:47:38.712Z",
+  "testParameters": {
+    "tokenLimits": [
+      2000,
+      6000
+    ]
+  },
+  "results": [
+    {
+      "tokenLimit": 2000,
+      "success": true,
+      "executionTime": 10.750115917,
+      "responseLength": 10,
+      "logGrowth": 4.703125,
+      "issuesFound": 0,
+      "consensusItems": 0,
+      "usedMultiCritic": false
+    },
+    {
+      "tokenLimit": 6000,
+      "success": true,
+      "executionTime": 9.453721749999998,
+      "responseLength": 10,
+      "logGrowth": 4.703125,
+      "issuesFound": 0,
+      "consensusItems": 0,
+      "usedMultiCritic": false
+    }
+  ],
+  "summary": {
+    "bothSuccessful": true,
+    "qualityImprovement": 0,
+    "performanceImpact": -1.2963941670000025
+  }
+}

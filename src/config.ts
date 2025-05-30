@@ -85,6 +85,6 @@ export const CRITIC_TEMPERATURES = {
  * Configurable via CRITIC_MAX_TOKENS environment variable.
  */
 export const CRITIC_MAX_TOKENS = Number.parseInt(
-  process.env.CRITIC_MAX_TOKENS ?? '2000',
+  process.env.CRITIC_MAX_TOKENS ?? '6000',
   10,
 );

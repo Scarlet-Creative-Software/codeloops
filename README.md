@@ -142,7 +142,7 @@ export CRITIC_TEMP_CORRECTNESS=0.3  # Logical consistency reviews
 export CRITIC_TEMP_EFFICIENCY=0.4   # Performance and best practices
 export CRITIC_TEMP_SECURITY=0.3     # Security vulnerability detection
 export CRITIC_TEMP_DEFAULT=0.3      # Fallback temperature
-export CRITIC_MAX_TOKENS=2000       # Maximum response tokens
+export CRITIC_MAX_TOKENS=6000       # Maximum response tokens
 ```
 
 Lower temperatures (0.3-0.4) produce more deterministic, focused code reviews. Values are automatically clamped to the valid range [0.0, 1.0].

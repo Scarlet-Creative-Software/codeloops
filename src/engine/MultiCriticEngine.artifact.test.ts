@@ -3,11 +3,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MultiCriticEngine } from './MultiCriticEngine.js';
 import { KnowledgeGraphManager } from './KnowledgeGraph.js';
 import { Tag } from './tags.js';
-import { readFileSync } from 'fs';
+import { readFile } from 'fs/promises';
 
-// Mock the fs module
-vi.mock('fs', () => ({
-  readFileSync: vi.fn(),
+// Mock the fs promises module
+vi.mock('fs/promises', () => ({
+  readFile: vi.fn(),
 }));
 
 // Mock the logger
@@ -49,7 +49,7 @@ describe('MultiCriticEngine Artifact Loading', () => {
 line 2
 line 3`;
     
-    vi.mocked(readFileSync).mockReturnValue(mockFileContent);
+    vi.mocked(readFile).mockResolvedValue(mockFileContent);
     
     const testNode = {
       id: 'test-node',
@@ -71,7 +71,7 @@ line 3`;
     // Access private method through any type casting for testing
     const context = await (engine as any).gatherContext('test-node');
     
-    expect(readFileSync).toHaveBeenCalledWith('/test/test.ts', 'utf-8');
+    expect(readFile).toHaveBeenCalledWith('/test/test.ts', 'utf-8');
     expect(context.artifactContents.get('/test/test.ts')).toBe(mockFileContent);
   });
 
@@ -97,14 +97,14 @@ line 3`;
     
     const context = await (engine as any).gatherContext('test-node');
     
-    expect(readFileSync).not.toHaveBeenCalled();
+    expect(readFile).not.toHaveBeenCalled();
     expect(context.artifactContents.get('/test/test.ts')).toBe(providedContent);
   });
 
   it('should truncate files longer than 3000 lines', async () => {
     const longContent = Array.from({ length: 3500 }, (_, i) => `line ${i + 1}`).join('\n');
     
-    vi.mocked(readFileSync).mockReturnValue(longContent);
+    vi.mocked(readFile).mockResolvedValue(longContent);
     
     const testNode = {
       id: 'test-node',
@@ -132,9 +132,14 @@ line 3`;
   });
 
   it('should handle file read errors gracefully', async () => {
-    vi.mocked(readFileSync).mockImplementation(() => {
-      throw new Error('File not found');
-    });
+    // Create a proper Node.js filesystem error with ENOENT code
+    const fsError = new Error('ENOENT: no such file or directory, open \'/test/missing.ts\'') as NodeJS.ErrnoException;
+    fsError.code = 'ENOENT';
+    fsError.errno = -2;
+    fsError.syscall = 'open';
+    fsError.path = '/test/missing.ts';
+    
+    vi.mocked(readFile).mockRejectedValue(fsError);
     
     const testNode = {
       id: 'test-node',
@@ -155,7 +160,39 @@ line 3`;
     
     const context = await (engine as any).gatherContext('test-node');
     
-    expect(context.artifactContents.get('/test/missing.ts')).toBe('[File not found or cannot be read: /test/missing.ts]');
+    expect(context.artifactContents.get('/test/missing.ts')).toBe('[File not found: /test/missing.ts]');
+  });
+
+  it('should handle permission denied errors with specific messaging', async () => {
+    // Create a proper Node.js filesystem error with EACCES code
+    const fsError = new Error('EACCES: permission denied, open \'/test/protected.ts\'') as NodeJS.ErrnoException;
+    fsError.code = 'EACCES';
+    fsError.errno = -13;
+    fsError.syscall = 'open';
+    fsError.path = '/test/protected.ts';
+    
+    vi.mocked(readFile).mockRejectedValue(fsError);
+    
+    const testNode = {
+      id: 'test-node',
+      project: 'test-project',
+      projectContext: '/test/project',
+      thought: 'Test thought',
+      role: 'actor' as const,
+      parents: [],
+      children: [],
+      createdAt: new Date().toISOString(),
+      tags: [Tag.Task],
+      artifacts: [
+        { name: 'protected.ts', path: '/test/protected.ts' }
+      ],
+    };
+    
+    vi.mocked(mockKg.getNode).mockResolvedValue(testNode);
+    
+    const context = await (engine as any).gatherContext('test-node');
+    
+    expect(context.artifactContents.get('/test/protected.ts')).toBe('[Permission denied: /test/protected.ts]');
   });
 
   it('should include artifact contents in critic prompts', async () => {
@@ -163,7 +200,7 @@ line 3`;
   return 42;
 }`;
     
-    vi.mocked(readFileSync).mockReturnValue(mockFileContent);
+    vi.mocked(readFile).mockResolvedValue(mockFileContent);
     
     const testNode = {
       id: 'test-node',

@@ -65,7 +65,7 @@ Temperature controls the randomness of AI responses. Lower values (0.0-0.5) prod
 
 #### `CRITIC_MAX_TOKENS`
 - **Description**: Maximum tokens for critic responses
-- **Default**: `2000`
+- **Default**: `6000`
 - **Example**: `CRITIC_MAX_TOKENS=3000`
 
 ### Optional Integration Configuration

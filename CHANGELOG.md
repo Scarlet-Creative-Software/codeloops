@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.4.3] - 2025-05-29
+
+### Critical Library Updates - Phase 1.0
+- feat: update @google/genai from ^1.0.1 to ^1.2.0 (CRITICAL)
+  - Unified SDK for Gemini 2.0 features and improved API
+  - Required due to package deprecation with EOL August 2025
+  - Ensures compatibility with latest Gemini model capabilities
+- feat: update @modelcontextprotocol/sdk from ^1.11.0 to ^1.12.1
+  - New Streamable HTTP transport support
+  - Enhanced MCP protocol compatibility
+- feat: update typescript-eslint from ^8.32.1 to ^8.33.0
+  - Maintenance release with latest rule definitions
+  - Improved TypeScript linting capabilities
+- test: verify all tests pass with updated dependencies
+- docs: document library update prioritization based on Context7 analysis
+
 ## [0.4.2] - 2025-05-29
 
 ### Temperature Configuration & System Robustness
