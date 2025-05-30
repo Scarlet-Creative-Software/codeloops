@@ -134,6 +134,21 @@ Event Horizon is optimized for Google's Gemini models. All components use `gemin
 
 ### Temperature Configuration
 
+Critics use configurable temperature settings for optimal code review performance:
+
+```bash
+# Set critic temperatures (default values shown)
+export CRITIC_TEMP_CORRECTNESS=0.3  # Logical consistency reviews
+export CRITIC_TEMP_EFFICIENCY=0.4   # Performance and best practices
+export CRITIC_TEMP_SECURITY=0.3     # Security vulnerability detection
+export CRITIC_TEMP_DEFAULT=0.3      # Fallback temperature
+export CRITIC_MAX_TOKENS=2000       # Maximum response tokens
+```
+
+Lower temperatures (0.3-0.4) produce more deterministic, focused code reviews. Values are automatically clamped to the valid range [0.0, 1.0].
+
+### Temperature Configuration
+
 Control the creativity and determinism of critic responses through temperature settings:
 
 ```bash
@@ -247,8 +262,9 @@ The Event Horizon system provides 10 powerful MCP tools:
 - **Memory**: Key memory system maintains up to 30 memories total (10 per critic)
 - **Accuracy**: Consensus approach catches ~40% more issues in testing
 - **Context**: Memories persist across 10 tool calls, extending with use
-- **Reliability**: Improved JSON parsing with structured prompts and graceful error handling
+- **Reliability**: Enhanced with retry logic, JSON sanitization, and graceful fallbacks
 - **Log Growth**: ~1.5x more data than single-critic (8.75 KB for complex reviews)
+- **Temperature**: Optimized at 0.3-0.4 for deterministic code reviews
 
 ## Troubleshooting
 
@@ -274,6 +290,17 @@ Codeloops now supports multiple projects through:
 - **Project Isolation**: Data is stored per-project, not globally
 
 See [docs/INSTALLATION_GUIDE.md](./docs/INSTALLATION_GUIDE.md) for detailed setup instructions.
+
+### JSON Parsing Issues
+
+If critics fail with JSON parsing errors:
+- The system now includes automatic retry with exponential backoff
+- JSON responses are sanitized to handle code examples with special characters
+- If issues persist, try reducing `CRITIC_MAX_TOKENS` to avoid truncated responses
+
+### Configuration Reference
+
+For a complete list of environment variables, see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md).
 
 ## The Mission
 

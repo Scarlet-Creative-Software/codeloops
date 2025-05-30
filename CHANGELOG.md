@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.4.2] - 2025-05-29
+
+### Temperature Configuration & System Robustness
+- feat: add configurable temperature settings for multi-critic system
+  - Correctness critic: 0.3 (via `CRITIC_TEMP_CORRECTNESS`)
+  - Efficiency critic: 0.4 (via `CRITIC_TEMP_EFFICIENCY`)
+  - Security critic: 0.3 (via `CRITIC_TEMP_SECURITY`)
+  - Default: 0.3 (via `CRITIC_TEMP_DEFAULT`)
+  - Max tokens: 2000 (via `CRITIC_MAX_TOKENS`)
+- feat: add temperature validation with automatic clamping to [0.0, 1.0] range
+- fix: resolve JSON parsing errors when critics include code examples
+  - Implement JsonSanitizer utility for escaping special characters
+  - Add retry logic with exponential backoff for transient failures
+  - Preprocess critic responses to ensure JSON safety
+- feat: add comprehensive retry mechanism for API calls
+  - Configurable retry attempts and delays
+  - Special handling for JSON parsing errors
+  - Exponential backoff with jitter
+- test: organize test scripts into structured directories
+  - Create tests/integration/ for multi-critic integration tests
+  - Create tests/temperature/ for temperature-specific tests
+  - Add new test scripts to package.json
+- docs: create CONFIGURATION.md with all environment variables
+- docs: add temperature configuration section to README
+- docs: create detailed fix plan documentation
+- test: add 18 unit tests for JsonSanitizer
+- test: add 6 unit tests for temperature validation
+- fix: resolve all TypeScript type errors and ESLint warnings
+- perf: improve error handling and fallback mechanisms
+
 ## [0.4.1] - 2025-05-29
 
 ### Multi-Project Support & Installation Improvements

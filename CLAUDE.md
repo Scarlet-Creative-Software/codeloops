@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Source Branch**: This is the Event Horizon fork maintained at https://github.com/Scarlet-Creative-Software/codeloops (dev branch)
 
+## Important Guidelines
+
+- **Release Notes**: All release notes MUST go in CHANGELOG.md. Never create separate release notes files.
+- **Documentation**: Update existing docs rather than creating new files unless absolutely necessary.
+- **Testing**: Always run tests after making changes (`npm test` and `npm run lint:all`).
+
 ## Commands
 
 ### Development

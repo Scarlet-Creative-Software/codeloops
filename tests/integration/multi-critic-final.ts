@@ -1,12 +1,12 @@
 #!/usr/bin/env npx tsx
 
-import { ActorCriticEngine } from './src/engine/ActorCriticEngine.js';
-import { KnowledgeGraphManager } from './src/engine/KnowledgeGraph.js';
-import { Critic } from './src/agents/Critic.js';
-import { Actor } from './src/agents/Actor.js';
-import { SummarizationAgent } from './src/agents/Summarize.js';
-import { Tag } from './src/engine/tags.js';
-import { getInstance as getLogger } from './src/logger.js';
+import { ActorCriticEngine } from '../../src/engine/ActorCriticEngine.js';
+import { KnowledgeGraphManager } from '../../src/engine/KnowledgeGraph.js';
+import { Critic } from '../../src/agents/Critic.js';
+import { Actor } from '../../src/agents/Actor.js';
+import { SummarizationAgent } from '../../src/agents/Summarize.js';
+import { Tag } from '../../src/engine/tags.js';
+import { getInstance as getLogger } from '../../src/logger.js';
 import { readFileSync, writeFileSync } from 'fs';
 
 async function testMultiCriticWithTemperature() {
