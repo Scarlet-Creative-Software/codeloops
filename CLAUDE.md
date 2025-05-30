@@ -4,6 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Source**: Event Horizon fork at https://github.com/Scarlet-Creative-Software/codeloops (dev branch)
 
+## 🚨 CURRENT TOP PRIORITY
+
+**CRITICAL ISSUE**: Multi-critic consensus system repeatedly fails with "All critics failed to provide reviews"
+- Circuit breaker keeps opening despite `apiKeyConfigured: true`
+- API calls failing at critic level even after .env loading fixes
+- System falls back to single-critic mode preventing full consensus analysis
+- **STATUS**: Infrastructure improvements completed, API connectivity issue remains
+
 ## Essential Guidelines
 
 - **SDK**: Use `@google/genai` (NEW) not `@google/generative-ai` (DEPRECATED - ends Aug 31, 2025). See genai-node-reference.md

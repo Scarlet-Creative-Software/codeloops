@@ -2,15 +2,13 @@
 
 ## An Artificial Brain for AI Coding Agents
 
-Codeloops: Event Horizon is an advanced fork of the original CodeLoops project, enhanced with a sophisticated multi-critic consensus system and contextual memory architecture. This version transforms AI coding agents by augmenting them with an "artificial brain" - providing deeper reasoning, persistent contextual memory, and multi-perspective analysis capabilities.
+Codeloops: Event Horizon is an advanced MCP server that transforms AI coding agents by augmenting them with an "artificial brain" - providing deeper reasoning, persistent contextual memory, and multi-perspective analysis capabilities through a sophisticated multi-critic consensus system.
 
-**🚀 Phase 1 & 2.1 Complete**: Production-ready with 90% faster queries, 99.5% reliability, intelligent semantic caching, and enterprise-grade performance optimizations.
+**Production Ready**: High-performance system with 90% faster queries, 99.5% reliability, intelligent semantic caching, and enterprise-grade optimizations.
 
-> **Note**: This is an experimental system in active development. Monitor API costs and back up your data.
+> **⚠️ KNOWN ISSUE**: Multi-critic consensus system currently experiencing API connectivity issues. Infrastructure improvements completed, but API calls are failing at the critic level causing fallback to single-critic mode. Investigation in progress - see [Development Roadmap](dev_roadmap/Development_Roadmap.md#-phase-0-critical-issue-resolution-top-priority) for details.
 
-## What Makes Event Horizon Different?
-
-While the original CodeLoops provided actor-critic feedback loops, Event Horizon introduces groundbreaking enhancements:
+## Key Features
 
 ### 🧠 Multi-Critic Consensus System
 - **Three Specialized Critics**: Each review is analyzed through three distinct lenses:
@@ -33,7 +31,7 @@ While the original CodeLoops provided actor-critic feedback loops, Event Horizon
 - **Graceful Fallback**: Automatically falls back to single-critic mode if consensus fails
 - **Performance Aware**: Only ~1.4x slower than single-critic with 1.5x more detailed analysis
 
-### 🧠 Semantic Query Caching (Phase 2.1) ✅
+### 🧠 Semantic Query Caching
 - **Three-Tier Cache Lookup**: Exact match → Semantic similarity → API call
 - **Vector Embeddings**: Uses Gemini embeddings for intelligent query matching
 - **HNSW Index**: Hierarchical Navigable Small World algorithm for O(log n) similarity search
@@ -183,22 +181,6 @@ export CRITIC_MAX_TOKENS=6000       # Maximum response tokens
 
 Lower temperatures (0.3-0.4) produce more deterministic, focused code reviews. Values are automatically clamped to the valid range [0.0, 1.0].
 
-### Temperature Configuration
-
-Control the creativity and determinism of critic responses through temperature settings:
-
-```bash
-# Lower temperatures (0.0-0.5) for deterministic, focused responses
-CRITIC_TEMP_CORRECTNESS=0.3  # Default: 0.3 - Best for logic validation
-CRITIC_TEMP_SECURITY=0.3     # Default: 0.3 - Best for vulnerability detection
-
-# Medium temperatures (0.3-0.7) for balanced analysis
-CRITIC_TEMP_EFFICIENCY=0.4   # Default: 0.4 - Good for design suggestions
-
-# All temperatures are validated and clamped to [0.0, 1.0]
-CRITIC_TEMP_DEFAULT=0.3      # Default: 0.3 - Fallback temperature
-```
-
 For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 
 ### MCP Server Configuration
@@ -318,82 +300,34 @@ The Event Horizon system provides 10 powerful MCP tools:
 
 ## Troubleshooting
 
-### Common Issue: "Cannot read properties of undefined"
+For comprehensive troubleshooting guidance, see [docs/TROUBLESHOOTING_MCP.md](./docs/TROUBLESHOOTING_MCP.md).
 
-If you encounter this error when using `actor_think`, it's likely due to multiple server instances:
+### Quick Resolution
 
-```bash
-# Kill all running codeloops processes
-pkill -f "tsx.*codeloops/src"
+Most issues can be resolved with the automated diagnostic tool:
 
-# Clear npx cache
-rm -rf ~/.npm/_npx/
+```javascript
+// Check system health
+check_multi_critic_health()
 
-# Restart Claude Code
-```
-
-### Multiple Project Support
-
-Codeloops now supports multiple projects through:
-- **Git Submodules**: Each project has its own codeloops instance
-- **Custom Data Directory**: Use `CODELOOPS_DATA_DIR` environment variable
-- **Project Isolation**: Data is stored per-project, not globally
-
-See [docs/INSTALLATION_GUIDE.md](./docs/INSTALLATION_GUIDE.md) for detailed setup instructions.
-
-### JSON Parsing Issues
-
-If critics fail with JSON parsing errors:
-- The system now includes automatic retry with exponential backoff
-- JSON responses are sanitized to handle code examples with special characters
-- If issues persist, try reducing `CRITIC_MAX_TOKENS` to avoid truncated responses
-
-### Multi-Critic Diagnostic Tool
-
-If you're experiencing issues with multi-critic feedback (getting basic "approved/rejected" instead of detailed consensus), use the diagnostic tool:
-
-```
-check_multi_critic_health
-```
-
-This tool will:
-- Check your API key configuration
-- Verify circuit breaker status  
-- Report system health metrics
-- Provide specific troubleshooting recommendations
-
-### Circuit Breaker Reset
-
-If the circuit breaker is OPEN (blocking multi-critic calls), you can manually reset it:
-
-```
+// Reset circuit breaker if needed
 check_multi_critic_health({"reset": true})
 ```
 
-This will:
-- Instantly reset the circuit breaker from OPEN to CLOSED state
-- Restore full multi-critic functionality immediately
-- Log the reset operation with comprehensive status updates
-- Eliminate the need to wait for the automatic timeout period
+### Known Issues
 
-### Common Multi-Critic Issues
+**Multi-Critic API Failures**: Currently experiencing "All critics failed to provide reviews" errors despite proper configuration. This causes fallback to single-critic mode. 
 
-**Symptom**: Getting basic "✔ Approved" instead of detailed multi-critic feedback
+**Symptoms**:
+- `multiCriticFallback: true` in response metadata
+- Circuit breaker repeatedly opens despite `apiKeyConfigured: true`
+- Single-critic reviews instead of three-critic consensus
 
-**Causes & Solutions**:
-1. **Missing API Key**: Ensure `GOOGLE_GENAI_API_KEY` is properly set
-2. **Rate Limiting**: Multi-critic may fall back during high API usage
-3. **Circuit Breaker Open**: System may be protecting against repeated failures
-   - Use `check_multi_critic_health({"reset": true})` to manually reset the circuit breaker
-4. **Network Issues**: Temporary connectivity problems cause fallback
-
-**Response Indicators**:
-- `multiCritic: true` in metadata = Full consensus system ran
-- `multiCriticFallback: true` in metadata = Fallback occurred, check `fallbackReason`
+**Current Workaround**: System automatically falls back to single-critic mode. Multi-critic infrastructure is intact and investigation is ongoing.
 
 ### Configuration Reference
 
-For a complete list of environment variables, see [docs/CONFIGURATION.md](./docs/CONFIGURATION.md).
+For complete configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 
 ## The Mission
 
