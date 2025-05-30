@@ -221,16 +221,40 @@ export class MemoryMappedStorageEngine {
     this.ensureInitialized();
     
     try {
-      // TODO: Implement node insertion logic
-      // This will involve:
-      // 1. Serializing the node
-      // 2. Allocating a block for storage
-      // 3. Writing the block to disk
-      // 4. Updating metadata and indices
-      // 5. Caching the node
+      // Serialize the node
+      const nodeData = JSON.stringify(node);
+      const nodeBuffer = Buffer.from(nodeData, 'utf-8');
       
-      this.logger.debug('[MemoryMappedStorageEngine] Node insertion not yet implemented', { nodeId: node.id });
-      throw new Error('Node insertion not yet implemented');
+      // Calculate block allocation
+      const blockCount = Math.ceil(nodeBuffer.length / this.config.blockSize);
+      const blockHandle = await this.allocateBlocks(blockCount);
+      
+      // Write node data to disk
+      await this.writeNodeToDisk(node.id, nodeBuffer, blockHandle);
+      
+      // Update metadata
+      const metadata: NodeMetadata = {
+        id: node.id,
+        blockHandle,
+        lastAccessed: Date.now(),
+        accessCount: 0
+      };
+      this.nodeMetadata.set(node.id, metadata);
+      
+      // Update file header
+      if (this.fileHeader) {
+        this.fileHeader.nodeCount++;
+        await this.writeFileHeader();
+      }
+      
+      // Cache the node
+      await this.cacheNode(node.id, node);
+      
+      this.logger.debug('[MemoryMappedStorageEngine] Node inserted', {
+        nodeId: node.id,
+        size: this.formatBytes(nodeBuffer.length),
+        blocks: blockCount
+      });
       
     } catch (error) {
       this.logger.error('[MemoryMappedStorageEngine] Failed to insert node', { 
@@ -275,10 +299,14 @@ export class MemoryMappedStorageEngine {
     this.ensureInitialized();
     
     try {
-      // TODO: Implement flushing of dirty data to disk
-      // For now, just sync the file handle
       if (this.fileHandle) {
+        // Ensure all buffered writes are flushed
         await this.fileHandle.sync();
+        
+        // Update header with latest stats
+        if (this.fileHeader) {
+          await this.writeFileHeader();
+        }
       }
       
       this.logger.debug('[MemoryMappedStorageEngine] Flush completed');
@@ -439,12 +467,6 @@ export class MemoryMappedStorageEngine {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private async loadNodeFromDisk(_metadata: NodeMetadata): Promise<DagNode> {
-    // TODO: Implement actual disk loading using metadata.blockHandle
-    // For now, return a placeholder
-    throw new Error('Disk loading not yet implemented');
-  }
 
   private async cacheNode(nodeId: string, node: DagNode): Promise<void> {
     // Calculate node memory usage (rough estimate)
@@ -558,6 +580,117 @@ export class MemoryMappedStorageEngine {
     }
     
     return `${size.toFixed(1)}${units[unitIndex]}`;
+  }
+  
+  // Helper methods implementation
+  
+  private async loadNodeFromDisk(metadata: NodeMetadata): Promise<DagNode> {
+    if (!this.fileHandle) {
+      throw new Error('File handle not initialized');
+    }
+    
+    const { blockHandle } = metadata;
+    const buffer = Buffer.alloc(blockHandle.size);
+    
+    // Read node data from disk
+    const { bytesRead } = await this.fileHandle.read(
+      buffer,
+      0,
+      blockHandle.size,
+      blockHandle.offset
+    );
+    
+    if (bytesRead !== blockHandle.size) {
+      throw new Error(`Failed to read complete node data: expected ${blockHandle.size}, got ${bytesRead}`);
+    }
+    
+    // Decompress if needed
+    const nodeData = buffer;
+    if (blockHandle.compressed && this.config.enableCompression) {
+      // TODO: Implement decompression
+      // For now, assume no compression
+    }
+    
+    // Verify checksum
+    const calculatedChecksum = this.calculateChecksum(nodeData);
+    if (calculatedChecksum !== blockHandle.checksum) {
+      throw new Error('Node data checksum mismatch');
+    }
+    
+    // Parse JSON
+    const nodeJson = nodeData.toString('utf-8').trim();
+    const node = JSON.parse(nodeJson) as DagNode;
+    
+    return node;
+  }
+  
+  private async allocateBlocks(count: number): Promise<BlockHandle> {
+    if (!this.fileHandle || !this.fileHeader) {
+      throw new Error('File not initialized');
+    }
+    
+    // Simple allocation: append to end of file
+    const fileStats = await this.fileHandle.stat();
+    const offset = fileStats.size;
+    const size = count * this.config.blockSize;
+    
+    // Pre-allocate space
+    await this.fileHandle.write(Buffer.alloc(size), 0, size, offset);
+    
+    return {
+      offset,
+      size,
+      compressed: false,
+      checksum: 0 // Will be calculated on write
+    };
+  }
+  
+  private async writeNodeToDisk(nodeId: string, buffer: Buffer, blockHandle: BlockHandle): Promise<void> {
+    if (!this.fileHandle) {
+      throw new Error('File handle not initialized');
+    }
+    
+    // Calculate checksum
+    blockHandle.checksum = this.calculateChecksum(buffer);
+    
+    // Pad buffer to block size
+    const paddedSize = Math.ceil(buffer.length / this.config.blockSize) * this.config.blockSize;
+    const paddedBuffer = Buffer.alloc(paddedSize);
+    buffer.copy(paddedBuffer);
+    
+    // Write to disk
+    const { bytesWritten } = await this.fileHandle.write(
+      paddedBuffer,
+      0,
+      paddedSize,
+      blockHandle.offset
+    );
+    
+    if (bytesWritten !== paddedSize) {
+      throw new Error(`Failed to write complete node data: expected ${paddedSize}, wrote ${bytesWritten}`);
+    }
+    
+    // Update block handle with actual size
+    blockHandle.size = buffer.length; // Store actual data size, not padded size
+  }
+  
+  private calculateChecksum(buffer: Buffer): number {
+    // Simple checksum algorithm (can be replaced with CRC32 or similar)
+    let checksum = 0;
+    for (let i = 0; i < buffer.length; i++) {
+      checksum = ((checksum << 1) | (checksum >>> 31)) ^ buffer[i];
+    }
+    return checksum >>> 0; // Ensure unsigned 32-bit
+  }
+  
+  private async loadMetadataIndex(): Promise<void> {
+    if (!this.fileHandle || !this.fileHeader) {
+      throw new Error('File not initialized');
+    }
+    
+    // TODO: Implement loading of metadata index from file
+    // For now, scan the file to rebuild index
+    this.logger.warn('[MemoryMappedStorageEngine] Metadata index loading not implemented, starting with empty index');
   }
 }
 

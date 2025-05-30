@@ -59,6 +59,7 @@ export const EngineConfigSchema = z.object({
     convergenceThreshold: z.number().default(0.95),
     enableMultiCritic: z.boolean().default(true),
     criticTimeout: z.number().default(120000),
+    multiCriticStaggerDelay: z.number().default(500), // ms between critic calls
   }).default({}),
   
   knowledgeGraph: z.object({

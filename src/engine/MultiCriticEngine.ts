@@ -302,7 +302,20 @@ Highlight security risks with severity ratings.`,
   ): Promise<Map<string, CriticResponse>> {
     const reviews = new Map<string, CriticResponse>();
 
-    const reviewPromises = this.critics.map(async (critic) => {
+    // Use staggered execution to avoid rate limiting
+    const staggerDelay = (() => {
+      try {
+        return getConfig<number>('engine.actorCritic.multiCriticStaggerDelay');
+      } catch {
+        return 500; // Default fallback
+      }
+    })();
+    
+    const reviewPromises = this.critics.map(async (critic, index) => {
+      // Add staggered delay for each critic except the first
+      if (index > 0) {
+        await new Promise(resolve => setTimeout(resolve, staggerDelay * index));
+      }
       let prompt = '';
       try {
         prompt = this.buildCriticPrompt(critic, context);
@@ -326,6 +339,7 @@ Highlight security risks with severity ratings.`,
               })(),
             },
             priority: RequestPriority.HIGH, // Multi-critic requests are high priority
+            // Note: GeminiConnectionManager handles rate limiting internally
           });
           
           // Preprocess the response to ensure JSON safety
