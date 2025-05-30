@@ -170,6 +170,33 @@ describe('GeminiConnectionManager', () => {
       // Should work now (half-open state)
       await expect(manager.execute(operation)).resolves.toBe('success');
     });
+
+    it('should allow manual circuit breaker reset', async () => {
+      const operation = vi.fn()
+        .mockRejectedValueOnce(new Error('UNAVAILABLE'))
+        .mockRejectedValueOnce(new Error('UNAVAILABLE'))
+        .mockRejectedValueOnce(new Error('UNAVAILABLE'))
+        .mockResolvedValue('success');
+      
+      // Open the circuit
+      for (let i = 0; i < 3; i++) {
+        await expect(manager.execute(operation, { retryable: false })).rejects.toThrow();
+      }
+      
+      // Verify circuit is OPEN
+      expect(manager.getCircuitBreakerStatus().state).toBe('OPEN');
+      
+      // Manual reset
+      const resetResult = manager.resetCircuitBreaker();
+      
+      expect(resetResult.success).toBe(true);
+      expect(resetResult.previousState).toBe('OPEN');
+      expect(resetResult.message).toContain('successfully reset from OPEN to CLOSED');
+      
+      // Should work immediately after manual reset (not requiring timeout)
+      await expect(manager.execute(operation)).resolves.toBe('success');
+      expect(manager.getCircuitBreakerStatus().state).toBe('CLOSED');
+    }, 10000); // Increase timeout to 10 seconds
   });
 
   describe('Retry Logic', () => {

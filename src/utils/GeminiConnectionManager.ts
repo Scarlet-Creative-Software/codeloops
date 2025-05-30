@@ -217,6 +217,36 @@ class CircuitBreaker {
     return this.state;
   }
 
+  /**
+   * Manually reset the circuit breaker to CLOSED state
+   * This can be used to recover from OPEN state without waiting for the timeout
+   */
+  reset(): void {
+    const previousState = this.state;
+    this.state = CircuitState.CLOSED;
+    this.failures = 0;
+    this.successCount = 0;
+    this.lastFailureTime = 0;
+    
+    this.logger.info(`Circuit breaker manually reset from ${previousState} to CLOSED state`);
+    this.emitter.emit('stateChange', CircuitState.CLOSED);
+    this.emitter.emit('manualReset', { previousState, timestamp: Date.now() });
+  }
+
+  /**
+   * Get detailed circuit breaker status including failure counts and timing
+   */
+  getStatus() {
+    return {
+      state: this.state,
+      failures: this.failures,
+      successCount: this.successCount,
+      lastFailureTime: this.lastFailureTime,
+      timeSinceLastFailure: this.lastFailureTime > 0 ? Date.now() - this.lastFailureTime : 0,
+      config: this.config
+    };
+  }
+
   on(event: string, listener: (...args: unknown[]) => void): void {
     this.emitter.on(event, listener);
   }
@@ -543,6 +573,40 @@ export class GeminiConnectionManager {
   }
 
   /**
+   * Get detailed circuit breaker status
+   */
+  getCircuitBreakerStatus() {
+    return this.circuitBreaker.getStatus();
+  }
+
+  /**
+   * Manually reset the circuit breaker to recover from OPEN state
+   * This should be used when you're confident the underlying issue has been resolved
+   */
+  resetCircuitBreaker(): { success: boolean; previousState: string; message: string } {
+    const previousState = this.circuitBreaker.getState();
+    
+    try {
+      this.circuitBreaker.reset();
+      const message = `Circuit breaker successfully reset from ${previousState} to CLOSED`;
+      this.logger.info(message);
+      return {
+        success: true,
+        previousState,
+        message
+      };
+    } catch (error) {
+      const message = `Failed to reset circuit breaker: ${error instanceof Error ? error.message : String(error)}`;
+      this.logger.error(message);
+      return {
+        success: false,
+        previousState,
+        message
+      };
+    }
+  }
+
+  /**
    * Gracefully shutdown the connection manager
    */
   async shutdown(): Promise<void> {
@@ -616,4 +680,20 @@ export async function resetConnectionManager(): Promise<void> {
     await connectionManager.shutdown();
     connectionManager = null;
   }
+}
+
+/**
+ * Reset the circuit breaker without shutting down the connection manager
+ * Useful for recovery from OPEN circuit breaker state
+ */
+export function resetCircuitBreaker(): { success: boolean; previousState: string; message: string } {
+  if (!connectionManager) {
+    return {
+      success: false,
+      previousState: 'unknown',
+      message: 'Connection manager not initialized'
+    };
+  }
+  
+  return connectionManager.resetCircuitBreaker();
 }

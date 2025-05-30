@@ -191,7 +191,7 @@ describe('MemoryMappedStorageEngine', () => {
       expect(result).toBeUndefined();
     });
 
-    it('should throw appropriate errors for unimplemented operations', async () => {
+    it('should handle basic node operations correctly', async () => {
       await storageEngine.initialize();
       
       const testNode: DagNode = {
@@ -207,8 +207,16 @@ describe('MemoryMappedStorageEngine', () => {
         artifacts: [],
       };
 
-      // These operations should throw until implemented
-      await expect(storageEngine.insertNode(testNode)).rejects.toThrow('not yet implemented');
+      // insertNode should work
+      await expect(storageEngine.insertNode(testNode)).resolves.not.toThrow();
+      
+      // Node should be retrievable
+      const retrieved = await storageEngine.getNode('test-node');
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.id).toBe('test-node');
+      expect(retrieved?.thought).toBe('Test thought');
+      
+      // Unimplemented operations should throw/return appropriate values
       await expect(storageEngine.bulkInsert([testNode])).rejects.toThrow('not yet implemented');
       await expect(storageEngine.deleteNode('test-id')).resolves.toBe(false);
     });

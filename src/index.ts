@@ -464,24 +464,46 @@ async function main() {
   /** check_multi_critic_health – Diagnostic tool to check multi-critic system status */
   server.tool(
     'check_multi_critic_health',
-    'Check the health and configuration of the multi-critic consensus system',
-    {},
-    async () => {
-      logger.info('[check_multi_critic_health] Checking multi-critic system health');
+    'Check the health and configuration of the multi-critic consensus system. Set reset=true to attempt recovery from circuit breaker OPEN state.',
+    {
+      reset: z.boolean().optional().describe('Set to true to reset the circuit breaker from OPEN state'),
+    },
+    async (args) => {
+      logger.info('[check_multi_critic_health] Checking multi-critic system health', { 
+        resetRequested: args.reset || false 
+      });
       
       try {
         // Get memory stats from multi-critic engine
         const memoryStats = engine.multiCriticEngine?.getMemoryStats();
         
-        // Check circuit breaker status if available
+        // Check circuit breaker status and handle reset if requested
         let circuitBreakerStatus = 'unknown';
+        let circuitBreakerDetails = null;
+        let resetResult = null;
+        
         try {
           const connectionManager = await import('../src/utils/GeminiConnectionManager.ts');
           const manager = connectionManager.getConnectionManager();
           const metrics = manager.getMetrics();
           circuitBreakerStatus = metrics.circuitBreakerState;
-        } catch {
+          circuitBreakerDetails = manager.getCircuitBreakerStatus();
+          
+          // Perform reset if requested and circuit breaker is OPEN
+          if (args.reset && circuitBreakerStatus === 'OPEN') {
+            resetResult = connectionManager.resetCircuitBreaker();
+            if (resetResult.success) {
+              // Update status after reset
+              const updatedMetrics = manager.getMetrics();
+              circuitBreakerStatus = updatedMetrics.circuitBreakerState;
+              circuitBreakerDetails = manager.getCircuitBreakerStatus();
+            }
+          }
+        } catch (error) {
           circuitBreakerStatus = 'not available';
+          logger.warn('[check_multi_critic_health] Could not access circuit breaker', { 
+            error: error instanceof Error ? error.message : String(error) 
+          });
         }
 
         const healthCheck = {
@@ -495,9 +517,11 @@ async function main() {
           },
           systemHealth: {
             circuitBreakerStatus,
+            circuitBreakerDetails,
             keyMemoryStats: memoryStats,
             apiKeyConfigured: !!(process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY),
           },
+          circuitBreakerReset: resetResult,
           recommendations: [] as string[],
         };
 
@@ -508,13 +532,26 @@ async function main() {
         }
         
         if (circuitBreakerStatus === 'OPEN') {
-          healthCheck.status = 'degraded';
-          healthCheck.recommendations.push('Circuit breaker is OPEN - API calls are being blocked');
+          if (resetResult?.success) {
+            healthCheck.status = 'recovered';
+            healthCheck.recommendations.push('Circuit breaker was OPEN but has been successfully reset');
+          } else {
+            healthCheck.status = 'degraded';
+            healthCheck.recommendations.push('Circuit breaker is OPEN - use reset=true to attempt recovery');
+          }
+        } else if (resetResult && !resetResult.success) {
+          healthCheck.status = 'warning';
+          healthCheck.recommendations.push(`Circuit breaker reset failed: ${resetResult.message}`);
         }
 
         if (!config.engine.actorCritic.enableMultiCritic) {
           healthCheck.status = 'disabled';
           healthCheck.recommendations.push('Multi-critic is disabled in configuration');
+        }
+        
+        // Add usage instructions for reset functionality
+        if (circuitBreakerStatus === 'OPEN' && !args.reset) {
+          healthCheck.recommendations.push('To reset the circuit breaker, call: check_multi_critic_health({"reset": true})');
         }
 
         return {

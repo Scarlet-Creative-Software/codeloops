@@ -268,27 +268,107 @@ export class MemoryMappedStorageEngine {
   async bulkInsert(nodes: DagNode[]): Promise<void> {
     this.ensureInitialized();
     
-    // TODO: Implement bulk insertion with batching
-    // This should be more efficient than individual inserts
+    if (nodes.length === 0) {
+      return;
+    }
     
-    this.logger.debug('[MemoryMappedStorageEngine] Bulk insertion not yet implemented', { 
+    this.logger.debug('[MemoryMappedStorageEngine] Starting bulk insertion', { 
       nodeCount: nodes.length 
     });
-    throw new Error('Bulk insertion not yet implemented');
+    
+    try {
+      // Process nodes in batches to avoid memory pressure
+      const batchSize = 100;
+      let successCount = 0;
+      
+      for (let i = 0; i < nodes.length; i += batchSize) {
+        const batch = nodes.slice(i, i + batchSize);
+        
+        // Insert each node in the batch
+        for (const node of batch) {
+          try {
+            await this.insertNode(node);
+            successCount++;
+          } catch (error) {
+            this.logger.error('[MemoryMappedStorageEngine] Failed to insert node in bulk operation', {
+              nodeId: node.id,
+              error: error instanceof Error ? error.message : String(error)
+            });
+            // Continue with other nodes rather than failing the entire batch
+          }
+        }
+        
+        // Flush to disk periodically
+        await this.flushToDisk();
+        
+        this.logger.debug('[MemoryMappedStorageEngine] Bulk insertion batch complete', {
+          batchStart: i,
+          batchSize: batch.length,
+          successCount,
+          totalNodes: nodes.length
+        });
+      }
+      
+      this.logger.info('[MemoryMappedStorageEngine] Bulk insertion completed', {
+        totalNodes: nodes.length,
+        successCount,
+        failedCount: nodes.length - successCount
+      });
+      
+    } catch (error) {
+      this.logger.error('[MemoryMappedStorageEngine] Bulk insertion failed', { 
+        nodeCount: nodes.length,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      throw error;
+    }
   }
 
   async deleteNode(nodeId: string): Promise<boolean> {
     this.ensureInitialized();
     
-    // TODO: Implement node deletion
-    // This involves:
-    // 1. Removing from cache
-    // 2. Marking block as free
-    // 3. Updating metadata
-    // 4. Updating indices
-    
-    this.logger.debug('[MemoryMappedStorageEngine] Node deletion not yet implemented', { nodeId });
-    return false;
+    try {
+      // Check if node exists
+      const metadata = this.nodeMetadata.get(nodeId);
+      if (!metadata) {
+        this.logger.debug('[MemoryMappedStorageEngine] Node not found for deletion', { nodeId });
+        return false;
+      }
+      
+      // Remove from cache
+      this.nodeCache.delete(nodeId);
+      
+      // Remove from access queue
+      const queueIndex = this.accessQueue.indexOf(nodeId);
+      if (queueIndex >= 0) {
+        this.accessQueue.splice(queueIndex, 1);
+      }
+      
+      // Mark block as free (simple approach - just remove metadata)
+      // TODO: Implement proper free block management for reuse
+      this.nodeMetadata.delete(nodeId);
+      
+      // Update file header
+      if (this.fileHeader) {
+        this.fileHeader.nodeCount--;
+        await this.writeFileHeader();
+      }
+      
+      this.logger.debug('[MemoryMappedStorageEngine] Node deleted successfully', { 
+        nodeId,
+        blockOffset: metadata.blockHandle.offset,
+        blockSize: metadata.blockHandle.size
+      });
+      
+      return true;
+      
+    } catch (error) {
+      this.logger.error('[MemoryMappedStorageEngine] Failed to delete node', { 
+        nodeId, 
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -402,11 +482,13 @@ export class MemoryMappedStorageEngine {
     // Read and validate header
     await this.readFileHeader();
     
-    // TODO: Load metadata index
+    // Load metadata index
+    await this.loadMetadataIndex();
     
     this.logger.info('[MemoryMappedStorageEngine] Existing file opened successfully', {
       version: this.fileHeader?.version,
-      nodeCount: this.fileHeader?.nodeCount
+      nodeCount: this.fileHeader?.nodeCount,
+      loadedMetadata: this.nodeMetadata.size
     });
   }
 
@@ -688,9 +770,86 @@ export class MemoryMappedStorageEngine {
       throw new Error('File not initialized');
     }
     
-    // TODO: Implement loading of metadata index from file
-    // For now, scan the file to rebuild index
-    this.logger.warn('[MemoryMappedStorageEngine] Metadata index loading not implemented, starting with empty index');
+    if (this.fileHeader.nodeCount === 0) {
+      this.logger.debug('[MemoryMappedStorageEngine] No nodes to load, starting with empty index');
+      return;
+    }
+    
+    this.logger.info('[MemoryMappedStorageEngine] Loading metadata index', {
+      nodeCount: this.fileHeader.nodeCount
+    });
+    
+    try {
+      // Simple approach: scan the data section to rebuild metadata index
+      // This is not optimal but works for now until we implement persistent B-tree
+      
+      let currentOffset = this.fileHeader.dataOffset;
+      const fileStats = await this.fileHandle.stat();
+      let nodesLoaded = 0;
+      
+      while (currentOffset < fileStats.size && nodesLoaded < this.fileHeader.nodeCount) {
+        try {
+          // Read block header (we'll store a simple format for now)
+          const headerBuffer = Buffer.alloc(32); // Simple block header
+          const { bytesRead } = await this.fileHandle.read(headerBuffer, 0, 32, currentOffset);
+          
+          if (bytesRead < 32) {
+            break; // End of file or corrupted data
+          }
+          
+          // Parse block header (simplified format)
+          const blockSize = headerBuffer.readUInt32LE(0);
+          const nodeIdLength = headerBuffer.readUInt32LE(4);
+          const checksum = headerBuffer.readUInt32LE(8);
+          
+          if (blockSize === 0 || nodeIdLength === 0) {
+            currentOffset += this.config.blockSize;
+            continue;
+          }
+          
+          // Read node ID
+          const nodeIdBuffer = Buffer.alloc(nodeIdLength);
+          await this.fileHandle.read(nodeIdBuffer, 0, nodeIdLength, currentOffset + 32);
+          const nodeId = nodeIdBuffer.toString('utf-8');
+          
+          // Create metadata entry
+          const metadata: NodeMetadata = {
+            id: nodeId,
+            blockHandle: {
+              offset: currentOffset + 32 + nodeIdLength,
+              size: blockSize - nodeIdLength,
+              compressed: false,
+              checksum
+            },
+            lastAccessed: 0,
+            accessCount: 0
+          };
+          
+          this.nodeMetadata.set(nodeId, metadata);
+          nodesLoaded++;
+          
+          // Move to next block
+          currentOffset += Math.ceil((32 + nodeIdLength + blockSize) / this.config.blockSize) * this.config.blockSize;
+          
+        } catch (error) {
+          this.logger.warn('[MemoryMappedStorageEngine] Error parsing block, skipping', {
+            offset: currentOffset,
+            error: error instanceof Error ? error.message : String(error)
+          });
+          currentOffset += this.config.blockSize;
+        }
+      }
+      
+      this.logger.info('[MemoryMappedStorageEngine] Metadata index loaded', {
+        expectedNodes: this.fileHeader.nodeCount,
+        loadedNodes: nodesLoaded
+      });
+      
+    } catch (error) {
+      this.logger.error('[MemoryMappedStorageEngine] Failed to load metadata index', { error });
+      // Start with empty index rather than failing
+      this.nodeMetadata.clear();
+    }
   }
 }
 
