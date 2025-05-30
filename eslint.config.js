@@ -12,7 +12,7 @@ export default defineConfig([
     plugins: { import: importPlugin },
   },
   {
-    //do not lint python files
-    ignores: ['agents/*', 'node_modules/*'],
+    //do not lint python files and test scripts
+    ignores: ['agents/*', 'node_modules/*', 'tests/scripts/*'],
   },
 ]);

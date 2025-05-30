@@ -1,35 +1,73 @@
-node_modules
+# Dependencies
+node_modules/
+
+# OS files
 .DS_Store
+Thumbs.db
+
+# Environment files
 .env
 .env.local
+.env.*.local
+
+# Data directory
 data/
+
+# Development roadmap (local-only)
+dev_roadmap/
+
+# Notes and drafts
 notes/drafts
+
+# Agent configuration
 agents/**/fastagent.secrets.yaml
 agents/**/fastagent.config.yaml
 agents/**/fastagent.jsonl
+
+# Logs
 logs/*.log
 logs/*.log*
-dev_roadmap/
+logs/*.json
 
-# Local documentation not for public repo
+# Local documentation (not for public repo)
 CLAUDE.md
 genai-node-reference.md
+CLAUDE_TOOLS_UPDATE.md
 
-# Local test results and reports
-CODELOOPS_V0.6.0_TESTING_REPORT.md
-v0.6.0-basic-test-report-*.json
-v0.6.0-test-summary.md
-MULTI_CRITIC_SYSTEM_TEST_SUMMARY.md
-CURRENT_STATUS_SUMMARY.md
-
-# Test scripts and logs
-CRITIC_TOKEN_LIMITS_TEST_RESULTS.md
-MULTI_CRITIC_TEST_RESULTS.md
-token-limit-*.ts
-logs/*.json
+# Test outputs and scripts
+tests/outputs/
+tests/scripts/test-multi-critic*
 
 # Temporary and backup files
 *.tmp
 *.bak
 *.swp
 *~
+.*.swp
+.*.swo
+
+# IDE and editor files
+.vscode/
+.idea/
+*.sublime-*
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Mac specific
+.AppleDouble
+.LSOverride
+
+# Windows specific
+Desktop.ini
+ehthumbs.db
