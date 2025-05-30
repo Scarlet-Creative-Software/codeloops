@@ -2,45 +2,10 @@ import { type Content } from '@google/genai';
 import { GENAI_THINKING_BUDGET } from '../config.ts';
 import { z } from 'zod';
 import { getConnectionManager, RequestPriority } from './GeminiConnectionManager.ts';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 // Note: Gemini API structured output support
 
-// Helper to generate example JSON from Zod schema
-function getZodExample(schema: z.ZodType<unknown>): unknown {
-  if (schema instanceof z.ZodObject) {
-    const shape = schema.shape;
-    const example: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(shape)) {
-      example[key] = getZodExample(value as z.ZodType<unknown>);
-    }
-    return example;
-  }
-  
-  if (schema instanceof z.ZodArray) {
-    return [getZodExample(schema.element)];
-  }
-  
-  if (schema instanceof z.ZodString) {
-    return "string";
-  }
-  
-  if (schema instanceof z.ZodNumber) {
-    return 0;
-  }
-  
-  if (schema instanceof z.ZodBoolean) {
-    return true;
-  }
-  
-  if (schema instanceof z.ZodEnum) {
-    return schema.options[0];
-  }
-  
-  if (schema instanceof z.ZodOptional) {
-    return getZodExample(schema.unwrap());
-  }
-  
-  return "unknown";
-}
+// Note: getZodExample removed since we now use native structured output
 
 // Legacy getAI functions removed - all API calls now go through GeminiConnectionManager
 
@@ -110,12 +75,9 @@ export async function generateObject<T>({
     contents.push({ role, parts: [{ text: msg.content }] });
   }
   
-  // For now, use the prompt-based approach until we can properly convert Zod to Gemini schema
-  // Add instruction to return JSON
-  const lastContent = contents[contents.length - 1];
-  if (lastContent && lastContent.role === 'user' && lastContent.parts && lastContent.parts[0]) {
-    lastContent.parts[0].text += `\n\nReturn your response as a valid JSON object matching this structure:\n${JSON.stringify(getZodExample(schema), null, 2)}\n\nRespond ONLY with valid JSON, no markdown formatting or explanations.`;
-  }
+  // Convert Zod schema to JSON Schema for Gemini's responseSchema
+  // Don't pass a name to avoid $ref and definitions which Gemini doesn't support
+  const jsonSchema = zodToJsonSchema(schema);
   
   const connectionManager = getConnectionManager();
   const result = await connectionManager.execute(
@@ -123,7 +85,12 @@ export async function generateObject<T>({
       return await client.models.generateContent({
         model,
         contents,
-        config: generationConfig,
+        config: {
+          ...generationConfig,
+          responseMimeType: 'application/json',
+          responseSchema: jsonSchema,
+          thinkingConfig: { thinkingBudget: GENAI_THINKING_BUDGET },
+        },
       });
     },
     { priority, timeout }
@@ -132,11 +99,11 @@ export async function generateObject<T>({
   const text = result.text ?? '{}';
   
   try {
-    // First try to parse the raw response
+    // With structured output, response should be valid JSON
     const parsed = JSON.parse(text);
     return schema.parse(parsed);
   } catch (error) {
-    // If that fails, try to extract JSON from the response
+    // Fallback parsing for backward compatibility
     let jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/)?.[1];
     
     if (!jsonMatch) {

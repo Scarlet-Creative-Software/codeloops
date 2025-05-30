@@ -10,8 +10,7 @@ import { resolve } from 'path';
 import { getConfig } from '../config/index.js';
 // Legacy config import for backward compatibility
 import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
-import { preprocessCriticResponse } from './JsonSanitizer.js';
-import { retryJsonParse } from '../utils/retry.js';
+// Note: JSON sanitization and retry logic removed since we now use structured output
 import { RequestPriority, resetConnectionManager, getConnectionManager } from '../utils/GeminiConnectionManager.js';
 
 // Schema for structured critic responses
@@ -379,56 +378,42 @@ Highlight security risks with severity ratings.`,
           promptLength: prompt.length 
         }, 'Critic prompt built, starting API call');
         
-        const response = await retryJsonParse(async () => {
-          this.logger.debug({ 
-            criticId: critic.id, 
-            model: 'gemini-2.5-flash-preview-05-20',
+        this.logger.debug({ 
+          criticId: critic.id, 
+          model: 'gemini-2.5-flash-preview-05-20',
+          temperature,
+          maxTokens: (() => {
+            try {
+              return getConfig<number>('model.gemini.maxTokens');
+            } catch {
+              return CRITIC_MAX_TOKENS;
+            }
+          })()
+        }, 'Calling generateObject with structured output');
+        
+        const response = await generateObject({
+          model: 'gemini-2.5-flash-preview-05-20',
+          messages: [{ role: 'user', content: prompt }],
+          schema: CriticResponseSchema,
+          generationConfig: {
             temperature,
-            maxTokens: (() => {
+            maxOutputTokens: (() => {
               try {
                 return getConfig<number>('model.gemini.maxTokens');
               } catch {
                 return CRITIC_MAX_TOKENS;
               }
-            })()
-          }, 'Calling generateObject');
-          
-          const rawResponse = await generateObject({
-            model: 'gemini-2.5-flash-preview-05-20',
-            messages: [{ role: 'user', content: prompt }],
-            schema: CriticResponseSchema,
-            generationConfig: {
-              temperature,
-              maxOutputTokens: (() => {
-                try {
-                  return getConfig<number>('model.gemini.maxTokens');
-                } catch {
-                  return CRITIC_MAX_TOKENS;
-                }
-              })(),
-            },
-            priority: RequestPriority.HIGH, // Multi-critic requests are high priority
-            timeout: 240000, // 240 seconds timeout for complex multi-critic requests
-            // Note: GeminiConnectionManager handles rate limiting internally
-          });
-          
-          this.logger.info({ 
-            criticId: critic.id, 
-            responseLength: JSON.stringify(rawResponse).length 
-          }, 'generateObject completed successfully');
-          
-          // Preprocess the response to ensure JSON safety
-          return preprocessCriticResponse(rawResponse) as CriticResponse;
-        }, {
-          maxAttempts: 3,
-          onRetry: (error, attempt) => {
-            this.logger.warn({ 
-              criticId: critic.id, 
-              attempt, 
-              error: error.message 
-            }, 'Retrying critic review due to JSON parsing error');
-          }
+            })(),
+          },
+          priority: RequestPriority.HIGH, // Multi-critic requests are high priority
+          timeout: 240000, // 240 seconds timeout for complex multi-critic requests
+          // Note: GeminiConnectionManager handles rate limiting internally
         });
+        
+        this.logger.info({ 
+          criticId: critic.id, 
+          responseLength: JSON.stringify(response).length 
+        }, 'generateObject completed successfully with structured output');
 
           this.logger.info({ criticId: critic.id }, 'Critic review completed successfully');
           reviews.set(critic.id, response);
@@ -493,20 +478,12 @@ Highlight security risks with severity ratings.`,
             context,
           );
 
-          const response = await retryJsonParse(async () => {
-            const rawResponse = await generateObject({
-              model: 'gemini-2.5-flash-preview-05-20',
-              messages: [{ role: 'user', content: prompt }],
-              schema: CrossCriticResponseSchema,
-              timeout: 240000, // 240 seconds timeout for cross-critic comparison
-            });
-            
-            return preprocessCriticResponse(rawResponse) as CrossCriticResponse;
-          }, {
-            maxAttempts: 3,
-            onRetry: (_error, attempt) => {
-              this.logger.warn({ criticId, attempt }, 'Retrying cross-critic comparison due to JSON parsing error');
-            }
+          const response = await generateObject({
+            model: 'gemini-2.5-flash-preview-05-20',
+            messages: [{ role: 'user', content: prompt }],
+            schema: CrossCriticResponseSchema,
+            timeout: 240000, // 240 seconds timeout for cross-critic comparison
+            priority: RequestPriority.HIGH,
           });
 
           comparisons.set(criticId, response);

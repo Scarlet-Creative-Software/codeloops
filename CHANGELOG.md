@@ -9,8 +9,26 @@
   - Can be globally disabled via `CODELOOPS_MULTI_CRITIC_DEFAULT=false` environment variable
   - Added `engine.actorCritic.multiCriticDefault` configuration option (defaults to true)
   - This change improves code quality by default while maintaining backward compatibility
+- feat: implement Gemini SDK native structured output for multi-critic system
+  - Added `zod-to-json-schema` package for automatic schema conversion
+  - Replaced prompt-based JSON generation with native `responseSchema` parameter
+  - Eliminates JSON parsing errors that were causing multi-critic failures
+  - Guaranteed valid JSON responses from all critics with automatic schema validation
+  - Significantly improved multi-critic consensus success rate and system reliability
+- feat: comprehensive README.md setup guide improvements
+  - Added prerequisites section with API key source and Node.js requirements
+  - Corrected MCP configuration paths (`.cursor/mcp.json` vs `.mcp.json`)
+  - Enhanced environment variable setup with `.env` file guidance
+  - Improved troubleshooting section with specific solutions for connection issues
+  - Added verification steps and diagnostic commands for installation success
+  - Merged essential CONFIGURATION.md details into main README for better accessibility
 
 ### Fixed
+- fix: resolve zodToJsonSchema $ref/definitions errors causing multi-critic failures
+  - Removed `name` parameter from zodToJsonSchema to avoid $ref and definitions generation
+  - Fixed "unrecognized_keys" ZodError that was preventing critics from providing reviews
+  - Eliminated JSON sanitization and retry logic that is no longer needed with structured output
+  - Multi-critic system now consistently produces valid JSON responses with proper schema validation
 - fix: Enhanced multi-critic fallback mechanism to prevent silent failures
   - Added detailed error logging when multi-critic system fails with full context
   - Enhanced single-critic fallback to provide structured markdown feedback instead of basic symbols

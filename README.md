@@ -82,7 +82,55 @@ Event Horizon augments any AI model with cognitive-like capabilities:
 
 ## Quick Setup
 
-### For Global Installation (Shared Across Projects)
+### Prerequisites
+
+1. **API Key**: Get a Google Gemini API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. **Node.js**: Version 18 or later required
+3. **Claude Code**: Install [Claude Code CLI](https://claude.ai/code) if not already installed
+
+### Installation Options
+
+#### Option 1: Project-Specific Installation (Recommended)
+
+Best for project isolation and version control:
+
+```bash
+# In your project directory
+git submodule add https://github.com/Scarlet-Creative-Software/codeloops.git codeloops
+cd codeloops
+
+# Install dependencies and run setup
+npm install
+npm run setup
+cd ..
+
+# Create environment file for API key
+echo "GOOGLE_GENAI_API_KEY=your-api-key-here" > .env
+
+# Create MCP configuration
+mkdir -p .cursor
+cat > .cursor/mcp.json << 'EOF'
+{
+  "mcpServers": {
+    "codeloops": {
+      "command": "npx",
+      "args": ["tsx", "./codeloops/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "your-api-key-here",
+        "CODELOOPS_MULTI_CRITIC_DEFAULT": "true"
+      }
+    }
+  }
+}
+EOF
+
+# Important: Restart Claude Code to load the new MCP server
+echo "⚠️  RESTART Claude Code now to activate codeloops"
+```
+
+#### Option 2: Global Installation (Shared Across Projects)
+
+For use across multiple projects:
 
 ```bash
 # Clone the Event Horizon fork
@@ -93,109 +141,131 @@ cd codeloops
 npm install
 npm run setup
 
-# Configure your API key (Gemini 2.5 Flash Preview recommended)
-export GOOGLE_GENAI_API_KEY=your-api-key
-```
-
-### For Project-Specific Installation (Recommended)
-
-```bash
-# In your project directory
-git submodule add https://github.com/Scarlet-Creative-Software/codeloops.git codeloops
-cd codeloops
-npm install
-npm run setup
-cd ..
-
-# Create .mcp.json with relative path
-cat > .mcp.json << 'EOF'
+# Add to your global MCP configuration (~/.claude/mcp.json)
 {
   "mcpServers": {
     "codeloops": {
       "command": "npx",
-      "args": ["tsx", "./codeloops/src"],
+      "args": ["-y", "tsx", "/full/path/to/codeloops/src"],
       "env": {
-        "GOOGLE_GENAI_API_KEY": "your-api-key-here"
+        "GOOGLE_GENAI_API_KEY": "your-api-key-here",
+        "CODELOOPS_MULTI_CRITIC_DEFAULT": "true"
       }
     }
   }
 }
-EOF
+```
+
+### Verification
+
+After setup, verify the installation:
+
+```bash
+# Check if codeloops is connected (should show "connected")
+claude mcp status
+
+# Test the multi-critic system
+# In Claude Code, try: "Use codeloops to test the multi-critic system"
 ```
 
 ## Configuration
 
-### Configure Multi-Critic Consensus
+### Environment Setup
 
-Multi-critic review is now enabled by default for all `actor_think` calls. You can control this behavior:
+Create a `.env` file in your project root for easy environment management:
+
+```bash
+# Essential Configuration
+GOOGLE_GENAI_API_KEY=your-api-key-here
+CODELOOPS_MULTI_CRITIC_DEFAULT=true
+
+# Optional: Logging and Performance
+LOG_LEVEL=info
+GEMINI_CACHE_TTL=600
+GENAI_THINKING_BUDGET=500
+
+# Optional: Critic Temperature Tuning
+CRITIC_TEMP_CORRECTNESS=0.3
+CRITIC_TEMP_EFFICIENCY=0.4
+CRITIC_TEMP_SECURITY=0.3
+CRITIC_MAX_TOKENS=6000
+```
+
+### Multi-Critic Control
+
+Multi-critic review is enabled by default. Control it per call or globally:
 
 ```javascript
 // Multi-critic consensus review (default)
 actor_think({
   text: "Implement user authentication",
   tags: ["task"],
-  artifacts: [...]
-  // feedback: true is the default, no need to specify
-})
-
-// Disable multi-critic for a specific call
-actor_think({
-  text: "Quick implementation fix",
-  tags: ["task"],
   artifacts: [...],
-  feedback: false  // Use single-critic for this call
+  feedback: true  // Explicit multi-critic (default)
+})
+
+// Single-critic mode for quick tasks
+actor_think({
+  text: "Fix typo in comment",
+  tags: ["task"], 
+  artifacts: [...],
+  feedback: false  // Faster single-critic mode
 })
 ```
 
-#### Global Configuration
+### Advanced Configuration
 
-To disable multi-critic by default across all calls:
-
-```bash
-# Set environment variable
-export CODELOOPS_MULTI_CRITIC_DEFAULT=false
-
-# Or in your .mcp.json
-"env": {
-  "GOOGLE_GENAI_API_KEY": "your-api-key",
-  "CODELOOPS_MULTI_CRITIC_DEFAULT": "false"
-}
-```
-
-### Model Configuration
-
-Event Horizon is optimized for Google's Gemini models. All components use `gemini-2.5-flash-preview-05-20` by default.
-
-### Temperature Configuration
-
-Critics use configurable temperature settings for optimal code review performance:
+For production deployments, customize critic behavior:
 
 ```bash
-# Set critic temperatures (default values shown)
-export CRITIC_TEMP_CORRECTNESS=0.3  # Logical consistency reviews
-export CRITIC_TEMP_EFFICIENCY=0.4   # Performance and best practices
-export CRITIC_TEMP_SECURITY=0.3     # Security vulnerability detection
-export CRITIC_TEMP_DEFAULT=0.3      # Fallback temperature
-export CRITIC_MAX_TOKENS=6000       # Maximum response tokens
+# Performance Tuning
+CRITIC_TEMP_CORRECTNESS=0.2  # More deterministic logic checking
+CRITIC_TEMP_EFFICIENCY=0.3   # Balanced performance suggestions  
+CRITIC_TEMP_SECURITY=0.2     # Strict security analysis
+CRITIC_MAX_TOKENS=3000       # Reduce for faster responses
+
+# Custom Data Directory
+CODELOOPS_DATA_DIR=/path/to/project/data
 ```
 
-Lower temperatures (0.3-0.4) produce more deterministic, focused code reviews. Values are automatically clamped to the valid range [0.0, 1.0].
+**Temperature Guidelines:**
+- **0.1-0.3**: Deterministic, focused analysis (security, correctness)
+- **0.3-0.5**: Balanced suggestions (efficiency, architecture)  
+- **0.5-0.7**: Creative problem-solving (design alternatives)
 
-For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
+For complete configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
 
 ### MCP Server Configuration
 
-Connect your AI coding agent to Codeloops. Create a `.mcp.json` file in your project root:
+Codeloops connects via MCP (Model Context Protocol). The configuration depends on your installation method:
 
-#### Option 1: Global Installation
+#### Project-Specific Configuration (`.cursor/mcp.json`)
 ```json
 {
   "mcpServers": {
     "codeloops": {
       "command": "npx",
-      "args": ["-y", "tsx", "/path/to/codeloops/src"],
+      "args": ["tsx", "./codeloops/src"],
       "env": {
-        "GOOGLE_GENAI_API_KEY": "your-api-key",
+        "GOOGLE_GENAI_API_KEY": "your-api-key-here",
+        "CODELOOPS_MULTI_CRITIC_DEFAULT": "true",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+#### Global Configuration (`~/.claude/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "codeloops": {
+      "command": "npx", 
+      "args": ["-y", "tsx", "/full/path/to/codeloops/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "your-api-key-here",
+        "CODELOOPS_MULTI_CRITIC_DEFAULT": "true",
         "CODELOOPS_DATA_DIR": "./codeloops-data"
       }
     }
@@ -203,22 +273,10 @@ Connect your AI coding agent to Codeloops. Create a `.mcp.json` file in your pro
 }
 ```
 
-#### Option 2: Project Submodule (Recommended)
-```json
-{
-  "mcpServers": {
-    "codeloops": {
-      "command": "npx",
-      "args": ["tsx", "./codeloops/src"],
-      "env": {
-        "GOOGLE_GENAI_API_KEY": "your-api-key"
-      }
-    }
-  }
-}
-```
-
-**Important**: Always restart Claude Code after modifying `.mcp.json`.
+**Critical Steps:**
+1. Always restart Claude Code after modifying MCP configuration
+2. Use `claude mcp status` to verify connection
+3. Check logs if connection fails: `claude mcp logs codeloops`
 
 ## Using the Artificial Brain
 
@@ -300,30 +358,95 @@ The Event Horizon system provides 10 powerful MCP tools:
 
 ## Troubleshooting
 
-For comprehensive troubleshooting guidance, see [docs/TROUBLESHOOTING_MCP.md](./docs/TROUBLESHOOTING_MCP.md).
+### Common Connection Issues
 
-### Quick Resolution
+#### 1. Codeloops Connection Failed
+**Symptoms**: `codeloops: failed` in MCP status
 
-Most issues can be resolved with the automated diagnostic tool:
+**Solutions**:
+```bash
+# Check if codeloops is properly installed
+cd codeloops && npm install && npm run setup
 
-```javascript
-// Check system health
-check_multi_critic_health()
+# Verify MCP configuration path
+ls -la .cursor/mcp.json  # Should exist for project-specific setup
 
-// Reset circuit breaker if needed
-check_multi_critic_health({"reset": true})
+# Check the path in mcp.json matches your installation
+# For project setup: "args": ["tsx", "./codeloops/src"] 
+# For global setup: "args": ["-y", "tsx", "/full/path/to/codeloops/src"]
+
+# Restart Claude Code completely
 ```
 
-### Known Issues
+#### 2. Multi-Critic Fallback Issues
+**Symptoms**: 
+- `multiCriticFallback: true` in responses
+- Only single-critic reviews instead of three-critic consensus
+- "All critics failed to provide reviews" in logs
 
-**Multi-Critic API Failures**: Currently experiencing "All critics failed to provide reviews" errors despite proper configuration. This causes fallback to single-critic mode. 
+**Solutions**:
+```javascript
+// Check system health and reset if needed
+check_multi_critic_health({"reset": true})
 
-**Symptoms**:
-- `multiCriticFallback: true` in response metadata
-- Circuit breaker repeatedly opens despite `apiKeyConfigured: true`
-- Single-critic reviews instead of three-critic consensus
+// Verify API key is working
+check_multi_critic_health()
+```
 
-**Current Workaround**: System automatically falls back to single-critic mode. Multi-critic infrastructure is intact and investigation is ongoing.
+#### 3. WCGW Connection Issues  
+**Symptoms**: `wcgw: failed` or "Connection closed error"
+
+**Solutions**:
+```bash
+# Reinstall wcgw globally
+uv tool install wcgw
+
+# Or update project MCP config to use:
+"wcgw": {
+  "command": "uvx", 
+  "args": ["wcgw@latest"]
+}
+```
+
+### Quick Diagnostic Commands
+
+Most issues can be resolved with these automated tools:
+
+```bash
+# Check MCP server status
+claude mcp status
+
+# View detailed logs for debugging
+claude mcp logs codeloops
+
+# Test codeloops directly
+npx tsx ./codeloops/src --help
+
+# Reset multi-critic system (if connected)
+# In Claude Code: check_multi_critic_health({"reset": true})
+```
+
+### Environment Troubleshooting
+
+```bash
+# Verify API key is set
+echo $GOOGLE_GENAI_API_KEY
+
+# Check Node.js version (requires 18+)
+node --version
+
+# Verify dependencies are installed
+cd codeloops && npm list
+```
+
+### Still Having Issues?
+
+1. **Clear MCP cache**: Restart Claude Code completely
+2. **Check logs**: Use `claude mcp logs codeloops` for detailed errors  
+3. **Verify setup**: Follow the [Quick Setup](#quick-setup) steps exactly
+4. **Test connection**: Use `claude mcp status` to confirm "connected" status
+
+For detailed troubleshooting, see [docs/TROUBLESHOOTING_MCP.md](./docs/TROUBLESHOOTING_MCP.md).
 
 ### Configuration Reference
 
