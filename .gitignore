@@ -30,9 +30,8 @@ logs/*.log*
 logs/*.json
 
 # Local documentation (not for public repo)
-CLAUDE.md
-genai-node-reference.md
-CLAUDE_TOOLS_UPDATE.md
+# CLAUDE.md and genai-node-reference.md are now part of the public repo
+# CLAUDE_TOOLS_UPDATE.md - removed, content merged into CLAUDE.md
 
 # Test outputs and scripts
 tests/outputs/
