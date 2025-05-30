@@ -40,6 +40,36 @@
 
 ## [Unreleased]
 
+### Phase 2.2: Memory-Mapped File Storage - COMPLETE ✅
+- feat: implement MemoryMappedStorageEngine for large knowledge graphs
+  - Binary file format with magic number validation (0x434C4F4F "CLOO")
+  - Block-based allocation and storage with configurable block sizes
+  - File header management with version support
+  - Checksum validation for data integrity
+  - Memory management with LRU eviction policy
+  - Cache hit/miss tracking and performance statistics
+- feat: add comprehensive node operations
+  - insertNode with proper disk persistence
+  - getNode with cache-first retrieval
+  - Automatic memory pressure management
+  - Background flush interval for durability
+- feat: implement helper methods for disk operations
+  - allocateBlocks for dynamic storage allocation
+  - writeNodeToDisk with padding and checksums
+  - loadNodeFromDisk with integrity verification
+  - calculateChecksum for data validation
+- feat: add multi-critic rate limiting fix
+  - Staggered delays between parallel critic calls
+  - Configurable multiCriticStaggerDelay (default 500ms)
+  - Prevents API rate limit errors in consensus reviews
+- test: comprehensive test suite for memory-mapped operations
+  - Basic CRUD operations validation
+  - Memory management and eviction testing
+  - Persistence across instance restarts
+  - Cache performance metrics validation
+- perf: achieve O(1) cache lookups and O(log n) disk operations
+- docs: add configuration for memory-mapped storage settings
+
 ### Phase 2.2.1: Memory-Mapped Storage Foundation - COMPLETE ✅
 - feat: implement comprehensive memory-mapped file infrastructure for persistent data management
   - High-performance mmap-based vector storage with configurable page sizes
