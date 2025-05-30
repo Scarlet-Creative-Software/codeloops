@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Phase 1.4: Configuration Management System
+- feat: implement centralized configuration management with Zod validation
+  - Comprehensive schema in `src/config/schema.ts` covering all configuration aspects
+  - Type-safe configuration access with TypeScript support
+  - Environment variable cascading with defaults
+  - Configuration file support (YAML and JSON)
+- feat: add hot-reload capability for safe runtime updates
+  - ConfigurationWatcher monitors file changes
+  - Hot-reloadable settings: log levels, model parameters, feature flags
+  - Non-disruptive updates without service restart
+- feat: implement configuration export/import functionality
+  - Export to YAML or JSON formats
+  - Automatic secret masking for security
+  - Configuration template generation (`codeloops.config.template.yaml`)
+  - Import with full validation
+- feat: create backward compatibility layer
+  - Legacy `config.ts` provides seamless migration path
+  - All existing code continues to work unchanged
+  - Gradual adoption strategy for new configuration system
+- test: add comprehensive test coverage for configuration system
+  - Schema validation tests
+  - ConfigurationManager tests
+  - ConfigurationExporter tests with 100% coverage
+  - Hot-reload functionality tests
+
 ### Phase 1.3: Gemini API Connection Optimization & Error Resilience
 - feat: implement GeminiConnectionManager with enterprise-grade resilience patterns
   - HTTP/2 connection pooling with configurable pool size (default: 5)
@@ -40,7 +65,6 @@
   - Maintenance release with latest rule definitions
   - Improved TypeScript linting capabilities
 - test: verify all tests pass with updated dependencies
-- docs: document library update prioritization based on Context7 analysis
 
 ## [0.4.2] - 2025-05-29
 

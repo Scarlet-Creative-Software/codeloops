@@ -7,6 +7,8 @@ import { generateObject } from '../utils/genai.js';
 import { KeyMemorySystem } from './KeyMemorySystem.js';
 import { readFile } from 'fs/promises';
 import { resolve } from 'path';
+import { getConfig } from '../config/index.js';
+// Legacy config import for backward compatibility
 import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
 import { preprocessCriticResponse } from './JsonSanitizer.js';
 import { retryJsonParse } from '../utils/retry.js';
@@ -245,18 +247,39 @@ Highlight security risks with severity ratings.`,
   private getCriticTemperature(criticId: string): number {
     let temperature: number;
     
-    switch (criticId) {
-      case 'correctness':
-        temperature = CRITIC_TEMPERATURES.correctness;
-        break;
-      case 'efficiency':
-        temperature = CRITIC_TEMPERATURES.efficiency;
-        break;
-      case 'security':
-        temperature = CRITIC_TEMPERATURES.security;
-        break;
-      default:
-        temperature = CRITIC_TEMPERATURES.default;
+    try {
+      // Try to get temperature from new config system
+      const baseTemp = getConfig<number>('model.gemini.temperature');
+      
+      // Apply critic-specific adjustments
+      switch (criticId) {
+        case 'correctness':
+          temperature = baseTemp * 0.9; // Slightly lower for correctness
+          break;
+        case 'efficiency':
+          temperature = baseTemp * 1.1; // Slightly higher for efficiency
+          break;
+        case 'security':
+          temperature = baseTemp * 0.9; // Slightly lower for security
+          break;
+        default:
+          temperature = baseTemp;
+      }
+    } catch {
+      // Fallback to legacy config if new system unavailable
+      switch (criticId) {
+        case 'correctness':
+          temperature = CRITIC_TEMPERATURES.correctness;
+          break;
+        case 'efficiency':
+          temperature = CRITIC_TEMPERATURES.efficiency;
+          break;
+        case 'security':
+          temperature = CRITIC_TEMPERATURES.security;
+          break;
+        default:
+          temperature = CRITIC_TEMPERATURES.default;
+      }
     }
     
     // Validate temperature is within valid range [0, 2]
@@ -294,7 +317,13 @@ Highlight security risks with severity ratings.`,
             schema: CriticResponseSchema,
             generationConfig: {
               temperature,
-              maxOutputTokens: CRITIC_MAX_TOKENS,
+              maxOutputTokens: (() => {
+                try {
+                  return getConfig<number>('model.gemini.maxTokens');
+                } catch {
+                  return CRITIC_MAX_TOKENS;
+                }
+              })(),
             },
             priority: RequestPriority.HIGH, // Multi-critic requests are high priority
           });
@@ -531,7 +560,13 @@ Focus on the most important issues that will improve the code quality.`;
         schema: responseSchema,
         generationConfig: {
           temperature: CRITIC_TEMPERATURES.default,
-          maxOutputTokens: CRITIC_MAX_TOKENS,
+          maxOutputTokens: (() => {
+            try {
+              return getConfig<number>('model.gemini.maxTokens');
+            } catch {
+              return CRITIC_MAX_TOKENS;
+            }
+          })(),
         },
       });
     } catch (error) {

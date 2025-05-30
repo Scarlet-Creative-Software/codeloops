@@ -15,7 +15,8 @@
     "setup": "bash scripts/setup.sh",
     "start": "npx -y tsx src",
     "type-check": "tsc --noEmit",
-    "test-quickstart": "bash scripts/test-quickstart.sh"
+    "test-quickstart": "bash scripts/test-quickstart.sh",
+    "config": "tsx src/config/cli.ts"
   },
   "keywords": [
     "codeloops",
@@ -46,6 +47,7 @@
     "@tsconfig/node22": "^22.0.1",
     "await-to-js": "^3.0.0",
     "chalk": "^5.4.1",
+    "commander": "^14.0.0",
     "console-table": "^0.1.2",
     "eslint-config-prettier": "^10.1.5",
     "eslint-plugin-import": "^2.31.0",
@@ -59,6 +61,7 @@
     "table": "^6.9.0",
     "typescript": "^5.8.3",
     "uuid": "^11.1.0",
+    "yaml": "^2.8.0",
     "zod": "^3.24.3"
   }
 }

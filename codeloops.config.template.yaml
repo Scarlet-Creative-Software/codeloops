@@ -1,0 +1,151 @@
+# Codeloops Configuration File
+# Copy this file to codeloops.config.yaml and customize as needed
+
+# System Configuration
+system:
+  # Data directory for storing knowledge graphs and caches
+  dataDir: ./data
+  
+  # Log level: debug, info, warn, error
+  logLevel: info
+  
+  # Optional log file path
+  # logFile: ./logs/codeloops.log
+  
+  # Maximum log file size in bytes (default: 10MB)
+  maxLogSize: 10485760
+  
+  # Enable telemetry (not implemented yet)
+  enableTelemetry: false
+
+# Model Configuration
+model:
+  # Google Gemini settings
+  gemini:
+    # API key (can also be set via GOOGLE_GENAI_API_KEY env var)
+    # apiKey: your-api-key-here
+    
+    # Model to use
+    model: gemini-2.5-flash-preview-05-20
+    
+    # Temperature (0.0-2.0) - Lower = more focused, Higher = more creative
+    temperature: 0.7
+    
+    # Maximum tokens for responses
+    maxTokens: 8192
+    
+    # Top-p sampling
+    topP: 0.9
+    
+    # Top-k sampling
+    topK: 40
+    
+    # Request timeout in milliseconds
+    timeout: 30000
+    
+    # Retry configuration
+    retryAttempts: 3
+    retryDelay: 1000
+  
+  # Ollama settings (optional)
+  ollama:
+    # Base URL for Ollama API
+    # baseUrl: http://localhost:11434
+    
+    # Model to use
+    model: llama2
+    
+    # Request timeout
+    timeout: 60000
+
+# Agent Configuration
+agent:
+  # Critic agent settings
+  critic:
+    # Base URL (can also be set via FASTAGENT_BASE_URL)
+    # baseUrl: http://localhost:8000
+    
+    # Request timeout
+    timeout: 120000
+    
+    # Maximum retries
+    maxRetries: 3
+  
+  # Summarize agent settings
+  summarize:
+    # Base URL
+    # baseUrl: http://localhost:8001
+    
+    # Request timeout
+    timeout: 60000
+    
+    # Maximum retries
+    maxRetries: 3
+
+# Engine Configuration
+engine:
+  # Actor-Critic engine settings
+  actorCritic:
+    # Maximum iterations for convergence
+    maxIterations: 10
+    
+    # Convergence threshold
+    convergenceThreshold: 0.95
+    
+    # Enable multi-critic consensus system
+    enableMultiCritic: true
+    
+    # Critic request timeout
+    criticTimeout: 120000
+  
+  # Knowledge graph settings
+  knowledgeGraph:
+    # Maximum number of nodes
+    maxNodes: 10000
+    
+    # Maximum edges per node
+    maxEdgesPerNode: 50
+    
+    # Enable cycle detection
+    enableCycleDetection: true
+    
+    # Index cache size
+    indexCacheSize: 1000
+  
+  # Key memory system settings
+  keyMemory:
+    # Maximum memories per critic
+    maxMemoriesPerCritic: 10
+    
+    # Memory lifespan (number of tool calls)
+    memoryLifespan: 10
+    
+    # Enable automatic eviction
+    enableAutoEviction: true
+
+# Performance Configuration
+performance:
+  # Caching settings
+  cache:
+    # Enable caching
+    enabled: true
+    
+    # Cache TTL in milliseconds (1 hour)
+    ttl: 3600000
+    
+    # Maximum cache size
+    maxSize: 100
+    
+    # Cache strategy: lru, lfu, fifo
+    strategy: lru
+  
+  # Connection pool settings
+  connectionPool:
+    # Maximum connections
+    maxConnections: 10
+    
+    # Idle timeout in milliseconds
+    idleTimeout: 60000
+    
+    # Connection timeout in milliseconds
+    connectionTimeout: 5000

@@ -2,11 +2,13 @@ import { type Logger, pino, type LevelWithSilentOrString } from 'pino';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getConfig, getConfigurationManager } from './config/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export type CodeLoopsLogger = Logger;
+export type { Logger };
 let globalLogger: CodeLoopsLogger | null = null;
 
 interface CreateLoggerOptions {
@@ -17,8 +19,24 @@ interface CreateLoggerOptions {
   level?: string;
 }
 
-const logsDir = path.resolve(__dirname, '../logs');
-const logFile = path.join(logsDir, 'codeloops.log');
+// Get log configuration from new config system
+let logsDir: string;
+let logFile: string;
+let maxLogSize: number;
+
+try {
+  const dataDir = getConfig<string>('system.dataDir');
+  logsDir = path.join(dataDir, 'logs');
+  const configLogFile = getConfig<string | undefined>('system.logFile');
+  logFile = configLogFile || path.join(logsDir, 'codeloops.log');
+  maxLogSize = getConfig<number>('system.maxLogSize');
+} catch {
+  // Fallback to defaults if config system not initialized
+  logsDir = path.resolve(__dirname, '../logs');
+  logFile = path.join(logsDir, 'codeloops.log');
+  maxLogSize = 10 * 1024 * 1024; // 10MB
+}
+
 if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true });
 }
@@ -36,10 +54,10 @@ export function createLogger(options: CreateLoggerOptions = {}): CodeLoopsLogger
       target: 'pino-roll',
       options: {
         file: logFile,
-        //TODO: make this all configurable by the user
         frequency: 'daily',
         limit: {
           count: 14, // 14 days of log retention
+          size: maxLogSize, // Max size per file from config
         },
       },
     });
@@ -53,8 +71,14 @@ export function createLogger(options: CreateLoggerOptions = {}): CodeLoopsLogger
     });
   }
   const transports = pino.transport({ targets, ...pinoOptions });
-  const logLevel: LevelWithSilentOrString =
-    level ?? (process.env.LOG_LEVEL as LevelWithSilentOrString) ?? 'info';
+  // Get log level from configuration system
+  let logLevel: LevelWithSilentOrString;
+  try {
+    logLevel = level ?? getConfig<string>('system.logLevel') as LevelWithSilentOrString;
+  } catch {
+    // Fallback to environment variable or default
+    logLevel = level ?? (process.env.LOG_LEVEL as LevelWithSilentOrString) ?? 'info';
+  }
   
   // Warn if debug level is set, as it can cause large log files
   if (logLevel === 'debug' && withFile) {
@@ -87,4 +111,23 @@ export function setGlobalLogger(logger: CodeLoopsLogger) {
 
 export function debug(...args: Parameters<CodeLoopsLogger['debug']>): void {
   getInstance().debug(...args);
+}
+
+// Listen for configuration changes to update log level
+try {
+  const configManager = getConfigurationManager();
+  interface LogLevelChange {
+    path: string;
+    newValue: unknown;
+  }
+  
+  configManager.on('change', (changes) => {
+    const logLevelChange = changes.find((c: LogLevelChange) => c.path === 'system.logLevel');
+    if (logLevelChange && globalLogger) {
+      globalLogger.level = logLevelChange.newValue as LevelWithSilentOrString;
+      globalLogger.info(`Log level changed to: ${logLevelChange.newValue}`);
+    }
+  });
+} catch {
+  // Ignore if configuration system not available
 }
