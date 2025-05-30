@@ -1,12 +1,10 @@
 # Troubleshooting Codeloops MCP Server
 
-**Status: ✅ ISSUES RESOLVED** - This guide provides current troubleshooting guidance. Most issues described here have been resolved through the circuit breaker reset functionality.
-
 This guide helps resolve common issues when using the codeloops MCP server in Claude Code projects.
 
-## Quick Resolution (Recommended)
+## Quick Resolution
 
-**🎯 FIRST STEP**: For most troubleshooting scenarios, use the automated circuit breaker reset functionality:
+**🎯 FIRST STEP**: For most troubleshooting scenarios, use the automated diagnostic and reset functionality:
 
 ```javascript
 // Check system health and status
@@ -16,7 +14,7 @@ check_multi_critic_health()
 check_multi_critic_health({"reset": true})
 ```
 
-This single command addresses:
+This automated tool addresses:
 - ✅ Multiple server instance conflicts
 - ✅ API connection failures  
 - ✅ Configuration validation issues
@@ -24,25 +22,25 @@ This single command addresses:
 - ✅ Missing environment variables
 - ✅ Multi-critic system fallback issues
 
-## Common Issues (Legacy - Now Auto-Resolved)
+## Current Issues & Solutions
 
-### Issue: Multi-Critic System Fallback
+### Multi-Critic System Not Running
 
 **Symptoms**:
-- `actor_think` calls fall back to single-critic mode
+- Getting basic "✔ Approved" instead of detailed consensus
 - Metadata shows `"multiCriticFallback": true`
-- Response includes `"fallbackReason": "All critics failed to provide reviews"`
+- Response includes fallback reason
 
 **Resolution**:
 ```javascript
 check_multi_critic_health({"reset": true})
 ```
 
-### Issue: Server Crashes on `actor_think`
+### Server Connection Issues
 
 **Symptoms**:
-- Crashes with `TypeError: Cannot read properties of undefined (reading 'addThought')`
-- Server appears to start but tools are unavailable
+- Tools are unavailable or return errors
+- Connection timeouts or failures
 
 **Resolution**:
 ```javascript
@@ -98,16 +96,16 @@ After configuration changes, restart Claude Code for changes to take effect.
    })
    ```
 
-## Historical Context
+## System Health Monitoring
 
-The major troubleshooting issues documented previously have been resolved through:
+The system includes comprehensive health monitoring:
 
 1. **Circuit Breaker Implementation**: Automatic failure detection and recovery
 2. **Enhanced Error Handling**: Graceful degradation with clear status indicators
 3. **Diagnostic Tools**: Real-time system health monitoring
 4. **Automated Recovery**: One-command resolution for most issues
 
-For historical troubleshooting documentation, see `/dev_roadmap/troubleshooting/`.
+For detailed development documentation, see `/dev_roadmap/summaries/`.
 
 ## Still Having Issues?
 

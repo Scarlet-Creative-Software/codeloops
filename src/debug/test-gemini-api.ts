@@ -90,7 +90,7 @@ Respond ONLY with valid JSON, no markdown formatting or explanations.`;
       const parsed = JSON.parse(structuredText);
       console.log('✅ Response is valid JSON');
       console.log(`   Summary: "${parsed.summary}"`);
-    } catch (parseError) {
+    } catch {
       console.log('⚠️  Response is not valid JSON (this might be expected)');
       console.log(`   First 100 chars: "${structuredText.substring(0, 100)}..."`);
     }
@@ -128,26 +128,26 @@ Respond ONLY with valid JSON, no markdown formatting or explanations.`;
     
   } catch (error) {
     console.error('\n❌ Test failed with error:');
-    console.error(`   Type: ${error.constructor.name}`);
-    console.error(`   Message: ${error.message}`);
-    if (error.stack) {
-      console.error(`   Stack: ${error.stack}`);
+    console.error(`   Type: ${(error as Error).constructor.name}`);
+    console.error(`   Message: ${(error as Error).message}`);
+    if ((error as Error).stack) {
+      console.error(`   Stack: ${(error as Error).stack}`);
     }
     
     // Check for common error patterns
-    if (error.message.includes('API_KEY_INVALID')) {
+    if ((error as Error).message.includes('API_KEY_INVALID')) {
       console.log('\n💡 Diagnosis: Invalid API key');
       console.log('   - Check that your API key is correct');
       console.log('   - Verify the key has proper permissions');
-    } else if (error.message.includes('PERMISSION_DENIED')) {
+    } else if ((error as Error).message.includes('PERMISSION_DENIED')) {
       console.log('\n💡 Diagnosis: Permission denied');
       console.log('   - Check API key permissions');
       console.log('   - Verify Gemini API is enabled for your project');
-    } else if (error.message.includes('QUOTA_EXCEEDED')) {
+    } else if ((error as Error).message.includes('QUOTA_EXCEEDED')) {
       console.log('\n💡 Diagnosis: Quota exceeded');
       console.log('   - Check your usage limits in Google Cloud Console');
       console.log('   - Wait for quota reset or upgrade plan');
-    } else if (error.message.includes('RESOURCE_EXHAUSTED')) {
+    } else if ((error as Error).message.includes('RESOURCE_EXHAUSTED')) {
       console.log('\n💡 Diagnosis: Rate limit hit');
       console.log('   - Reduce request frequency');
       console.log('   - Implement proper backoff strategies');

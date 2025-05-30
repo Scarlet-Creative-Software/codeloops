@@ -35,6 +35,13 @@
   - Clear diagnostic information available to troubleshoot and resolve system issues
   - Comprehensive test verification confirms functionality works correctly
 
+### Development Documentation
+- docs: Consolidated development documentation structure
+  - Moved Event Horizon implementation summary to `dev_roadmap/summaries/`
+  - Moved multi-critic fix documentation to `dev_roadmap/summaries/`
+  - Cleaned README.md to focus on current features and usage
+  - Enhanced troubleshooting documentation with automated resolution steps
+
 ## [0.6.0] - 2025-05-30
 
 ### Phase 2.1: Semantic Query Caching - COMPLETE ✅

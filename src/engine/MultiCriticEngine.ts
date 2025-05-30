@@ -242,7 +242,7 @@ Highlight security risks with severity ratings.`,
           }
         })(),
         criticConfiguration: {
-          critics: this.critics.map(c => ({ id: c.id, specialization: c.specialization })),
+          critics: this.critics.map(c => ({ id: c.id, focus: c.focus })),
           criticsCount: this.critics.length
         }
       }, 'Multi-critic review failed - comprehensive error analysis');
