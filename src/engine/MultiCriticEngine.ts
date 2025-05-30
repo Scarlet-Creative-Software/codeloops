@@ -7,6 +7,9 @@ import { generateObject } from '../utils/genai.js';
 import { KeyMemorySystem } from './KeyMemorySystem.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { CRITIC_TEMPERATURES, CRITIC_MAX_TOKENS } from '../config.js';
+import { preprocessCriticResponse } from './JsonSanitizer.js';
+import { retryJsonParse } from '../utils/retry.js';
 
 // Schema for structured critic responses
 const CriticResponseSchema = z.object({
@@ -236,6 +239,38 @@ Highlight security risks with severity ratings.`,
   }
 
   /**
+   * Get the appropriate temperature for a critic based on its type
+   */
+  private getCriticTemperature(criticId: string): number {
+    let temperature: number;
+    
+    switch (criticId) {
+      case 'correctness':
+        temperature = CRITIC_TEMPERATURES.correctness;
+        break;
+      case 'efficiency':
+        temperature = CRITIC_TEMPERATURES.efficiency;
+        break;
+      case 'security':
+        temperature = CRITIC_TEMPERATURES.security;
+        break;
+      default:
+        temperature = CRITIC_TEMPERATURES.default;
+    }
+    
+    // Validate temperature is within valid range [0, 2]
+    if (temperature < 0 || temperature > 2) {
+      this.logger.warn(
+        { criticId, temperature },
+        'Invalid temperature value, using default'
+      );
+      return CRITIC_TEMPERATURES.default;
+    }
+    
+    return temperature;
+  }
+
+  /**
    * Runs all critics in parallel
    */
   private async parallelCriticReview(
@@ -248,10 +283,27 @@ Highlight security risks with severity ratings.`,
       try {
         prompt = this.buildCriticPrompt(critic, context);
         
-        const response = await generateObject({
-          model: 'gemini-2.5-flash-preview-05-20',
-          messages: [{ role: 'user', content: prompt }],
-          schema: CriticResponseSchema,
+        // Get temperature based on critic type
+        const temperature = this.getCriticTemperature(critic.id);
+        
+        const response = await retryJsonParse(async () => {
+          const rawResponse = await generateObject({
+            model: 'gemini-2.5-flash-preview-05-20',
+            messages: [{ role: 'user', content: prompt }],
+            schema: CriticResponseSchema,
+            generationConfig: {
+              temperature,
+              maxOutputTokens: CRITIC_MAX_TOKENS,
+            },
+          });
+          
+          // Preprocess the response to ensure JSON safety
+          return preprocessCriticResponse(rawResponse) as CriticResponse;
+        }, {
+          maxAttempts: 3,
+          onRetry: (error, attempt) => {
+            this.logger.warn({ criticId: critic.id, attempt }, 'Retrying critic review due to JSON parsing error');
+          }
         });
 
         reviews.set(critic.id, response);
@@ -301,15 +353,24 @@ Highlight security risks with severity ratings.`,
             context,
           );
 
-          const response = await generateObject({
-            model: 'gemini-2.5-flash-preview-05-20',
-            messages: [{ role: 'user', content: prompt }],
-            schema: CrossCriticResponseSchema,
+          const response = await retryJsonParse(async () => {
+            const rawResponse = await generateObject({
+              model: 'gemini-2.5-flash-preview-05-20',
+              messages: [{ role: 'user', content: prompt }],
+              schema: CrossCriticResponseSchema,
+            });
+            
+            return preprocessCriticResponse(rawResponse) as CrossCriticResponse;
+          }, {
+            maxAttempts: 3,
+            onRetry: (error, attempt) => {
+              this.logger.warn({ criticId, attempt }, 'Retrying cross-critic comparison due to JSON parsing error');
+            }
           });
 
           comparisons.set(criticId, response);
-        } catch (error) {
-          this.logger.error({ error, criticId }, 'Cross-critic comparison failed');
+        } catch (err) {
+          this.logger.error({ error: err, criticId }, 'Cross-critic comparison failed');
         }
       },
     );
@@ -335,6 +396,12 @@ Highlight security risks with severity ratings.`,
 
     // Process initial reviews
     initialReviews.forEach((review, criticId) => {
+      // Check if review and critiques exist
+      if (!review || !review.critiques || !Array.isArray(review.critiques)) {
+        this.logger.warn({ criticId }, 'Invalid review structure, skipping');
+        return;
+      }
+      
       review.critiques.forEach((critique) => {
         const issueKey = critique.issue;
         if (!allIssues.has(issueKey)) {
@@ -353,6 +420,12 @@ Highlight security risks with severity ratings.`,
 
     // Update confidences based on cross-comparisons
     crossComparisons.forEach((comparison, criticId) => {
+      // Check if comparison and revisedConfidences exist
+      if (!comparison || !comparison.revisedConfidences) {
+        this.logger.warn({ criticId }, 'Invalid comparison structure, skipping');
+        return;
+      }
+      
       Object.entries(comparison.revisedConfidences).forEach(([issue, confidence]) => {
         const issueData = allIssues.get(issue);
         if (issueData) {
@@ -448,11 +521,25 @@ Focus on the most important issues that will improve the code quality.`;
       conclusion: z.string().describe('Overall recommendation'),
     });
     
-    const response = await generateObject({
-      model: 'gemini-2.5-flash-preview-05-20',
-      messages: [{ role: 'user', content: prompt }],
-      schema: responseSchema,
-    });
+    let response;
+    try {
+      response = await generateObject({
+        model: 'gemini-2.5-flash-preview-05-20',
+        messages: [{ role: 'user', content: prompt }],
+        schema: responseSchema,
+        generationConfig: {
+          temperature: CRITIC_TEMPERATURES.default,
+          maxOutputTokens: CRITIC_MAX_TOKENS,
+        },
+      });
+    } catch (error) {
+      this.logger.error({ error }, 'Failed to generate final critique');
+      throw new Error('Failed to generate final critique synthesis');
+    }
+
+    if (!response || !response.summary) {
+      throw new Error('Invalid response from final critique generation');
+    }
 
     return `## Multi-Critic Consensus Review
 

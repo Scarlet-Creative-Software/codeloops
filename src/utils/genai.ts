@@ -83,11 +83,18 @@ export async function generateObject<T>({
   messages,
   schema,
   system,
+  generationConfig,
 }: {
   model: string;
   messages: { role: string; content: string }[];
   schema: z.ZodSchema<T>;
   system?: string;
+  generationConfig?: {
+    temperature?: number;
+    maxOutputTokens?: number;
+    topK?: number;
+    topP?: number;
+  };
 }): Promise<T> {
   // Convert messages to Content format
   const contents: Content[] = [];
@@ -111,6 +118,7 @@ export async function generateObject<T>({
   const result = await getAI().models.generateContent({
     model,
     contents,
+    config: generationConfig,
   });
   
   const text = result.text ?? '{}';

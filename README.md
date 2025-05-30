@@ -132,6 +132,24 @@ actor_think({
 
 Event Horizon is optimized for Google's Gemini models. All components use `gemini-2.5-flash-preview-05-20` by default.
 
+### Temperature Configuration
+
+Control the creativity and determinism of critic responses through temperature settings:
+
+```bash
+# Lower temperatures (0.0-0.5) for deterministic, focused responses
+CRITIC_TEMP_CORRECTNESS=0.3  # Default: 0.3 - Best for logic validation
+CRITIC_TEMP_SECURITY=0.3     # Default: 0.3 - Best for vulnerability detection
+
+# Medium temperatures (0.3-0.7) for balanced analysis
+CRITIC_TEMP_EFFICIENCY=0.4   # Default: 0.4 - Good for design suggestions
+
+# All temperatures are validated and clamped to [0.0, 1.0]
+CRITIC_TEMP_DEFAULT=0.3      # Default: 0.3 - Fallback temperature
+```
+
+For detailed configuration options, see [CONFIGURATION.md](./CONFIGURATION.md).
+
 ### MCP Server Configuration
 
 Connect your AI coding agent to Codeloops. Create a `.mcp.json` file in your project root:

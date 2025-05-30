@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:integration": "tsx tests/integration/multi-critic-final.ts",
+    "test:temperature": "tsx tests/temperature/config.ts",
+    "test:multi-critic": "tsx tests/integration/multi-critic-demo.ts",
     "format": "prettier --write .",
     "prepare": "husky",
     "lint": "eslint .",

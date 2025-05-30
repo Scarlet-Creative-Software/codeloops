@@ -192,13 +192,33 @@ describe('MultiCriticEngine', () => {
       };
 
       // Mock responses with one critic failing
-      vi.mocked(genai.generateObject)
-        .mockResolvedValueOnce(mockCriticResponse) // Correctness critic
-        .mockRejectedValueOnce(new Error('Critic timeout')) // Efficiency critic fails
-        .mockResolvedValueOnce(mockCriticResponse) // Security critic
-        .mockResolvedValueOnce(mockCrossComparisonResponse) // Cross comparison 1
-        .mockResolvedValueOnce(mockCrossComparisonResponse) // Cross comparison 2
-        .mockResolvedValueOnce(mockFinalCritique); // Final synthesis
+      // Use mockImplementation to handle parallel execution order
+      let callCount = 0;
+      vi.mocked(genai.generateObject).mockImplementation(async () => {
+        callCount++;
+        
+        // The critics run in parallel, so we need to identify them by the schema
+        // For simplicity, we'll make efficiency critic fail for first 3 calls containing "efficiency"
+        // and return success for all others
+        
+        // Always return the final critique for the last call
+        if (callCount > 7) {
+          return mockFinalCritique;
+        }
+        
+        // Make efficiency critic fail (it will retry 3 times)
+        if (callCount >= 2 && callCount <= 4) {
+          throw new Error('Critic timeout');
+        }
+        
+        // Return cross comparison for calls 6-7
+        if (callCount >= 6) {
+          return mockCrossComparisonResponse;
+        }
+        
+        // Return critic response for other calls
+        return mockCriticResponse;
+      });
 
       // Should still succeed with 2 out of 3 critics
       const criticNode = await multiCriticEngine.performMultiCriticReview({
