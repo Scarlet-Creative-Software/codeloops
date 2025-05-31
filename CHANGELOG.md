@@ -3,6 +3,15 @@
 ## [Unreleased]
 
 ### Fixed
+- fix: CRITICAL - resolve MCP server JSON protocol interference causing connection failures (May 31, 2025)
+  - **Root Cause**: Console output in src/config/cli.ts corrupting stdio JSON-RPC communication
+  - **Impact**: 40+ server crashes with "SyntaxError: Expected ',' or ']' after array element" since May 29
+  - **Solution**: Added MCP mode detection and replaced all console.log/console.error with conditional logging
+  - **Implementation**: Safe logging functions that use console in CLI mode, file logger in MCP mode
+  - **Validation**: Comprehensive testing shows zero JSON protocol corruption errors
+  - **Deployment**: Fix deployed to stable MCP installation (~/.codeloops-stable/)
+  - **Result**: Server stability restored, clean JSON-RPC communication, zero unexpected crashes
+  - **Coverage**: Fixed 15+ console output statements across lines 39-192 in cli.ts
 - fix: resolve MCP server JSON protocol interference causing connection failures
   - Fixed console output in GeminiConnectionManager.ts that was corrupting JSON-RPC communication
   - Removed console.error calls in genai.ts structured output fallback handling

@@ -7,9 +7,67 @@ import { writeFileSync, copyFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import chalk from 'chalk';
+import { getInstance as getLogger } from '../logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/**
+ * Detects if the process is running in MCP (Model Context Protocol) mode.
+ * MCP uses stdio for JSON-RPC communication, so any console output corrupts the protocol.
+ */
+function isMcpMode(): boolean {
+  // Check explicit environment variables first (most reliable)
+  if (process.env.MCP_MODE === 'true' || process.env.CLAUDE_MCP === 'true') {
+    return true;
+  }
+  
+  // Check for MCP server indicators in process arguments
+  const hasServerArgs = process.argv.some(arg => 
+    arg.includes('mcp-server') || 
+    arg.includes('claude-mcp') ||
+    (arg.includes('mcp') && arg.includes('server'))
+  );
+  
+  // Check for stdio-based JSON-RPC communication (more conservative)
+  // Only trigger if we're actually being run as an MCP server
+  const isStdioRedirected = !process.stdout.isTTY && !process.stderr.isTTY && !process.stdin.isTTY;
+  
+  return hasServerArgs || (isStdioRedirected && hasServerArgs);
+}
+
+const IS_MCP_MODE = isMcpMode();
+const logger = getLogger({ withFile: true });
+
+// Log MCP mode detection for debugging purposes
+if (IS_MCP_MODE) {
+  logger.debug('CLI running in MCP mode - console output redirected to file logger');
+}
+
+/**
+ * Safe console logging that respects MCP mode.
+ * In MCP mode, uses the file logger to avoid corrupting JSON-RPC.
+ * In CLI mode, uses console for immediate user feedback.
+ */
+function safeLog(message: string, level: 'info' | 'error' | 'warn' = 'info'): void {
+  if (IS_MCP_MODE) {
+    // Use file logger in MCP mode to avoid corrupting JSON-RPC protocol
+    logger[level](message);
+  } else {
+    // Use console in CLI mode for immediate user feedback
+    console.log(message);
+  }
+}
+
+function safeError(message: string, error?: unknown): void {
+  if (IS_MCP_MODE) {
+    // Use file logger in MCP mode
+    logger.error(message, error);
+  } else {
+    // Use console.error in CLI mode
+    console.error(message, error);
+  }
+}
 
 const program = new Command();
 
@@ -36,10 +94,10 @@ program
         writeFileSync(options.path, template);
       }
       
-      console.log(chalk.green(`✓ Configuration file created at: ${options.path}`));
-      console.log(chalk.gray('Edit the file to customize your settings'));
+      safeLog(chalk.green(`✓ Configuration file created at: ${options.path}`));
+      safeLog(chalk.gray('Edit the file to customize your settings'));
     } catch (error) {
-      console.error(chalk.red('Failed to initialize configuration:'), error);
+      safeError(chalk.red('Failed to initialize configuration:'), error);
       process.exit(1);
     }
   });
@@ -52,16 +110,16 @@ program
   .action((file) => {
     try {
       const config = ConfigurationExporter.import(file);
-      console.log(chalk.green(`✓ Configuration is valid`));
+      safeLog(chalk.green(`✓ Configuration is valid`));
       
       // Show summary
-      console.log(chalk.blue('\nConfiguration Summary:'));
-      console.log(`  Data Directory: ${config.system.dataDir}`);
-      console.log(`  Log Level: ${config.system.logLevel}`);
-      console.log(`  Gemini Model: ${config.model.gemini.model}`);
-      console.log(`  Multi-Critic: ${config.engine.actorCritic.enableMultiCritic ? 'Enabled' : 'Disabled'}`);
+      safeLog(chalk.blue('\nConfiguration Summary:'));
+      safeLog(`  Data Directory: ${config.system.dataDir}`);
+      safeLog(`  Log Level: ${config.system.logLevel}`);
+      safeLog(`  Gemini Model: ${config.model.gemini.model}`);
+      safeLog(`  Multi-Critic: ${config.engine.actorCritic.enableMultiCritic ? 'Enabled' : 'Disabled'}`);
     } catch (error) {
-      console.error(chalk.red('Configuration validation failed:'), error);
+      safeError(chalk.red('Configuration validation failed:'), error);
       process.exit(1);
     }
   });
@@ -84,9 +142,9 @@ program
         pretty: true
       });
       
-      console.log(chalk.green(`✓ Configuration exported to: ${options.output}`));
+      safeLog(chalk.green(`✓ Configuration exported to: ${options.output}`));
     } catch (error) {
-      console.error(chalk.red('Failed to export configuration:'), error);
+      safeError(chalk.red('Failed to export configuration:'), error);
       process.exit(1);
     }
   });
@@ -101,9 +159,9 @@ program
       const manager = new ConfigurationManager();
       const value = manager.get(path);
       
-      console.log(chalk.blue(`${path}:`), value);
+      safeLog(chalk.blue(`${path}:`) + ' ' + value);
     } catch (error) {
-      console.error(chalk.red('Failed to get configuration value:'), error);
+      safeError(chalk.red('Failed to get configuration value:'), error);
       process.exit(1);
     }
   });
@@ -119,14 +177,14 @@ program
       const config = manager.getAll();
       
       if (options.format === 'json') {
-        console.log(JSON.stringify(config, null, 2));
+        safeLog(JSON.stringify(config, null, 2));
       } else {
         // Import yaml module
         const yaml = await import('yaml');
-        console.log(yaml.stringify(config));
+        safeLog(yaml.stringify(config));
       }
     } catch (error) {
-      console.error(chalk.red('Failed to list configuration:'), error);
+      safeError(chalk.red('Failed to list configuration:'), error);
       process.exit(1);
     }
   });
@@ -136,7 +194,7 @@ program
   .command('env')
   .description('Show environment variable mappings')
   .action(() => {
-    console.log(chalk.blue('Environment Variable Mappings:\n'));
+    safeLog(chalk.blue('Environment Variable Mappings:\n'));
     
     const mappings = [
       { env: 'CODELOOPS_DATA_DIR', config: 'system.dataDir', description: 'Data directory path' },
@@ -148,11 +206,11 @@ program
     
     for (const mapping of mappings) {
       const currentValue = process.env[mapping.env];
-      console.log(chalk.yellow(`${mapping.env}`));
-      console.log(`  Config Path: ${mapping.config}`);
-      console.log(`  Description: ${mapping.description}`);
-      console.log(`  Current Value: ${currentValue || chalk.gray('(not set)')}`);
-      console.log();
+      safeLog(chalk.yellow(`${mapping.env}`));
+      safeLog(`  Config Path: ${mapping.config}`);
+      safeLog(`  Description: ${mapping.description}`);
+      safeLog(`  Current Value: ${currentValue || chalk.gray('(not set)')}`);
+      safeLog('');
     }
   });
 
@@ -165,15 +223,15 @@ program
     try {
       const manager = new ConfigurationManager(options.config);
       
-      console.log(chalk.blue('Watching configuration file for changes...'));
-      console.log(chalk.gray('Press Ctrl+C to stop\n'));
+      safeLog(chalk.blue('Watching configuration file for changes...'));
+      safeLog(chalk.gray('Press Ctrl+C to stop\n'));
       
       manager.on('change', (changes) => {
-        console.log(chalk.yellow(`Configuration changed at ${new Date().toISOString()}`));
+        safeLog(chalk.yellow(`Configuration changed at ${new Date().toISOString()}`));
         for (const change of changes) {
-          console.log(`  ${change.path}: ${change.oldValue} → ${change.newValue}`);
+          safeLog(`  ${change.path}: ${change.oldValue} → ${change.newValue}`);
         }
-        console.log();
+        safeLog('');
       });
       
       manager.enableHotReload();
@@ -181,12 +239,12 @@ program
       // Keep process running
       process.stdin.resume();
     } catch (error) {
-      console.error(chalk.red('Failed to watch configuration:'), error);
+      safeError(chalk.red('Failed to watch configuration:'), error);
       process.exit(1);
     }
   });
 
 program.parseAsync().catch((error) => {
-  console.error(chalk.red('Command failed:'), error);
+  safeError(chalk.red('Command failed:'), error);
   process.exit(1);
 });
