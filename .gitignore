@@ -16,7 +16,15 @@ data/
 # Development roadmap (local-only)
 dev_roadmap/
 
-# Notes and drafts
+# Performance monitoring files
+performance-baseline.json
+performance-monitoring.log
+load-test-results.csv
+complexity-test-results.csv
+scripts/performance-monitor.sh
+scripts/load-test.sh
+
+# Notes and drafts  
 notes/drafts
 
 # Agent configuration
@@ -49,6 +57,10 @@ tests/scripts/test-multi-critic*
 .vscode/
 .idea/
 *.sublime-*
+
+# Claude Code MCP configuration (keep local project config)
+!.cursor/
+!.cursor/mcp.json
 
 # Build artifacts
 dist/

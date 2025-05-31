@@ -6,7 +6,6 @@ Codeloops: Event Horizon is an advanced MCP server that transforms AI coding age
 
 **Production Ready**: High-performance system with 90% faster queries, 99.5% reliability, intelligent semantic caching, and enterprise-grade optimizations.
 
-> **⚠️ KNOWN ISSUE**: Multi-critic consensus system currently experiencing API connectivity issues. Infrastructure improvements completed, but API calls are failing at the critic level causing fallback to single-critic mode. Investigation in progress - see [Development Roadmap](dev_roadmap/Development_Roadmap.md#-phase-0-critical-issue-resolution-top-priority) for details.
 
 ## Key Features
 

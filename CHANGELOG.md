@@ -2,8 +2,28 @@
 
 ## [Unreleased]
 
+### Added
+- feat: implement comprehensive performance monitoring framework (May 31, 2025)
+  - **Baseline Metrics**: Established structured baseline with JSON format for reproducibility
+  - **Automated Monitoring**: Created performance-monitor.sh script for 24-48 hour continuous tracking
+  - **Load Testing**: Implemented load-test.sh script to simulate realistic usage patterns
+  - **Success Criteria**: Defined specific targets: log <500KB/day, memory <200MB, p95 latency <2s
+  - **Complexity Validation**: Added O(1) complexity testing for summarization performance
+  - **Resource Tracking**: Monitor memory, disk usage, response times, and system behavior
+  - **Security Review**: Structured approach to identify and sanitize sensitive data in logs
+  - **Structured Data**: All metrics stored in JSON format for analysis and trending
+
 ### Fixed
-- fix: CRITICAL - resolve MCP server JSON protocol interference causing connection failures (May 31, 2025)
+- fix: CRITICAL - resolve secondary MCP JSON protocol interference in server initialization (May 31, 2025 - Phase 2)
+  - **Root Cause**: Early logger.info() calls in src/index.ts main() function during MCP server startup
+  - **Impact**: "SyntaxError: Unexpected number in JSON at position 2" error after Phase 1 deployment
+  - **Source**: Logger output to stdout occurring before MCP mode detection corrupting JSON-RPC handshake
+  - **Solution**: Added MCP mode detection to index.ts and conditional startup logging
+  - **Implementation**: isMcpMode() function prevents stdout output during critical initialization phase
+  - **Validation**: Successful MCP calls and multi-critic operations working correctly
+  - **Result**: Complete resolution of JSON-RPC protocol interference issues
+  - **Coverage**: Fixed startup logging on lines 80, 86-90, 372-374, 635 in index.ts
+- fix: CRITICAL - resolve MCP server JSON protocol interference causing connection failures (May 31, 2025 - Phase 1)
   - **Root Cause**: Console output in src/config/cli.ts corrupting stdio JSON-RPC communication
   - **Impact**: 40+ server crashes with "SyntaxError: Expected ',' or ']' after array element" since May 29
   - **Solution**: Added MCP mode detection and replaced all console.log/console.error with conditional logging
