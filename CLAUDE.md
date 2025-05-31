@@ -4,9 +4,15 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Source**: Event Horizon fork at https://github.com/Scarlet-Creative-Software/codeloops (dev branch)
 
-## ✅ RECENT RESOLUTION
+## ✅ RECENT RESOLUTIONS
 
-**RESOLVED**: Multi-critic consensus system now working correctly
+**RESOLVED**: Gemini SDK structured output implementation (Latest)
+- **Root Cause**: Critics using prompt-based JSON generation with manual parsing and retry logic
+- **Solution**: Implemented native `responseSchema` with zodToJsonSchema conversion (no name parameter to avoid $ref)
+- **Status**: All critics now use Gemini's native structured output for guaranteed valid JSON
+- **Performance**: Eliminated JSON parsing errors, reduced API calls, improved reliability
+
+**RESOLVED**: Multi-critic consensus system working correctly
 - **Root Cause**: Request timeout errors (original timeout too short for variable critic analysis times)
 - **Solution**: Increased timeout to 120s for multi-critic operations, improved schema validation
 - **Status**: Multi-critic system operational, 3 specialized critics working in parallel
@@ -100,4 +106,37 @@ npx -y @modelcontextprotocol/server-puppeteer         # Puppeteer
 ### Server Crashes  
 **Problem**: `Cannot read properties of undefined` in `actor_think`
 **Solution**: Kill processes (`pkill -f "tsx.*codeloops/src"`), clear npx cache, restart Claude Code
+
+### Large File Limitations
+**Note**: Some core files like `KnowledgeGraph.ts` and `IndexSystem.ts` are too large to read with wcgw ReadFiles tool
+**Solution**: Use targeted searches, smaller file sections, or BashCommand with head/tail for large file analysis
+
+## ⚙️ MCP CONFIGURATION FOR THIS PROJECT
+
+**IMPORTANT**: This project uses a **stable MCP installation** to avoid development disruption.
+
+### Current Configuration (`.cursor/mcp.json`)
+```json
+{
+  "mcpServers": {
+    "codeloops": {
+      "command": "npx",
+      "args": ["-y", "tsx", "/Users/matthewamann/.codeloops-stable/src"],
+      "env": {
+        "GOOGLE_GENAI_API_KEY": "...",
+        "CODELOOPS_MULTI_CRITIC_DEFAULT": "true",
+        "LOG_LEVEL": "info"
+      }
+    }
+  }
+}
+```
+
+### Deployment Process
+When development changes need to be deployed to the active MCP server:
+1. **Test changes thoroughly** with `npm run lint:all` and `npm test`
+2. **Deploy to stable installation**: `cp -r /Users/matthewamann/codeloops/* ~/.codeloops-stable/`
+3. **Restart Claude Code** to pick up changes
+
+**Rationale**: Using `~/.codeloops-stable/src` instead of live development source prevents MCP server crashes during development work.
 

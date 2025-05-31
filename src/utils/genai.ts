@@ -114,9 +114,8 @@ export async function generateObject<T>({
       try {
         const parsed = JSON.parse(jsonMatch.trim());
         return schema.parse(parsed);
-      } catch (innerError) {
-        console.error('Failed to parse extracted JSON:', innerError);
-        console.error('JSON string:', jsonMatch.substring(0, 500));
+      } catch {
+        // Failed to parse extracted JSON - continue to throw main error
       }
     }
     throw new Error(`Failed to parse response as valid JSON: ${error}\nOriginal text: ${text.substring(0, 500)}`);

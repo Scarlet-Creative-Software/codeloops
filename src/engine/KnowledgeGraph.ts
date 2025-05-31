@@ -69,6 +69,11 @@ export class KnowledgeGraphManager {
   private isIndexInitialized = false;
   private semanticCacheManager?: SemanticCacheManager;
   private semanticCacheConfig?: PerformanceConfig['semanticCache'];
+  
+  // Size monitoring properties
+  private readonly MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB limit
+  private lastSizeCheck = 0;
+  private sizeCheckInterval = 10000; // Check every 10 seconds
 
   // Schema for validating DagNode entries
   private static DagNodeSchema = z.object({
@@ -124,26 +129,78 @@ export class KnowledgeGraphManager {
 
   /**
    * Initialize the B-tree index system by reading all existing nodes
+   * Uses streaming parser to handle large files without memory issues
    * This provides O(log n) performance for subsequent operations
    */
   private async initializeIndex() {
     if (this.isIndexInitialized) return;
     
     const startTime = Date.now();
-    this.logger.info('[KnowledgeGraphManager] Building B-tree indices...');
     
-    const fileStream = fsSync.createReadStream(this.logFilePath);
-    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+    // Check file size first
+    let fileSize = 0;
+    try {
+      const stats = await fs.stat(this.logFilePath);
+      fileSize = stats.size;
+      const sizeInMB = fileSize / (1024 * 1024);
+      
+      if (sizeInMB > 20) {
+        this.logger.warn({ 
+          fileSize: `${sizeInMB.toFixed(2)}MB`,
+          estimatedNodes: Math.floor(fileSize / 500) // Rough estimate
+        }, '[KnowledgeGraphManager] Large file detected - using streaming parser with progress tracking');
+      } else {
+        this.logger.info('[KnowledgeGraphManager] Building B-tree indices...');
+      }
+    } catch (error) {
+      this.logger.warn({ error }, 'Could not check file size, proceeding with index build');
+    }
+    
+    const fileStream = fsSync.createReadStream(this.logFilePath, { 
+      encoding: 'utf8',
+      highWaterMark: 64 * 1024 // 64KB chunks for better memory management
+    });
+    const rl = readline.createInterface({ 
+      input: fileStream, 
+      crlfDelay: Infinity,
+      // Increase buffer size for large files
+      ...(fileSize > 10 * 1024 * 1024 && { historySize: 0 }) // Disable history for large files
+    });
     
     let nodeCount = 0;
+    let errorCount = 0;
+    let lastProgressReport = Date.now();
+    const progressInterval = 5000; // Report progress every 5 seconds
+    
     try {
       for await (const line of rl) {
         const node = this.parseDagNode(line);
         if (node) {
           this.indexSystem.indexNode(node);
           nodeCount++;
+          
+          // Progress reporting for large files
+          const now = Date.now();
+          if (fileSize > 10 * 1024 * 1024 && now - lastProgressReport > progressInterval) {
+            this.logger.info({ 
+              processed: nodeCount, 
+              errors: errorCount,
+              timeElapsed: `${((now - startTime) / 1000).toFixed(1)}s`
+            }, '[KnowledgeGraphManager] Indexing progress...');
+            lastProgressReport = now;
+          }
+        } else {
+          errorCount++;
+        }
+        
+        // Memory management: periodically clean up node cache for very large files
+        if (nodeCount % 10000 === 0 && this.nodeCache.size > 1000) {
+          this.nodeCache.clear();
         }
       }
+    } catch (error) {
+      this.logger.error({ error, nodeCount, errorCount }, 'Error during index initialization');
+      throw error;
     } finally {
       rl.close();
       fileStream.close();
@@ -155,7 +212,8 @@ export class KnowledgeGraphManager {
     this.logger.info(
       `[KnowledgeGraphManager] Index built successfully: ${nodeCount} nodes, ` +
       `${stats.totalProjects} projects, ${stats.totalTags} tags, ` +
-      `${stats.totalContentTerms} content terms in ${duration}ms`
+      `${stats.totalContentTerms} content terms in ${duration}ms` +
+      (errorCount > 0 ? ` (${errorCount} parse errors)` : '')
     );
     
     this.isIndexInitialized = true;
@@ -188,7 +246,88 @@ export class KnowledgeGraphManager {
     }
   }
 
+  /**
+   * Check if knowledge graph file is approaching size limits
+   * Returns true if size is acceptable, false if action needed
+   */
+  private async checkFileSize(): Promise<boolean> {
+    const now = Date.now();
+    
+    // Only check periodically to avoid frequent file system calls
+    if (now - this.lastSizeCheck < this.sizeCheckInterval) {
+      return true; // Assume OK if we checked recently
+    }
+    
+    this.lastSizeCheck = now;
+    
+    try {
+      const stats = await fs.stat(this.logFilePath);
+      const sizeInMB = stats.size / (1024 * 1024);
+      
+      if (stats.size > this.MAX_FILE_SIZE_BYTES) {
+        this.logger.error({ 
+          currentSize: `${sizeInMB.toFixed(2)}MB`,
+          maxSize: `${this.MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`,
+          filePath: this.logFilePath 
+        }, '🚨 CRITICAL: Knowledge graph file exceeds size limit!');
+        
+        // Archive the current file and start fresh
+        await this.archiveOversizedFile();
+        return true; // Continue after archival
+      }
+      
+      // Warn at 80% of limit
+      if (stats.size > this.MAX_FILE_SIZE_BYTES * 0.8) {
+        this.logger.warn({ 
+          currentSize: `${sizeInMB.toFixed(2)}MB`,
+          maxSize: `${this.MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`,
+          percentFull: `${(stats.size / this.MAX_FILE_SIZE_BYTES * 100).toFixed(1)}%`
+        }, '⚠️  Knowledge graph file approaching size limit');
+      }
+      
+      return true;
+    } catch (error) {
+      this.logger.warn({ error }, 'Failed to check knowledge graph file size');
+      return true; // Continue on error
+    }
+  }
+
+  /**
+   * Archive oversized knowledge graph file and start fresh
+   */
+  private async archiveOversizedFile(): Promise<void> {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const archivePath = `${this.logFilePath}.archive-${timestamp}`;
+    
+    try {
+      this.logger.info({ archivePath }, 'Archiving oversized knowledge graph file');
+      
+      // Move current file to archive
+      await fs.rename(this.logFilePath, archivePath);
+      
+      // Create new empty file
+      await fs.writeFile(this.logFilePath, '');
+      
+      // Clear caches and reinitialize
+      this.nodeCache.clear();
+      this.indexSystem = new KnowledgeGraphIndexSystem();
+      this.isIndexInitialized = false;
+      
+      this.logger.info({ 
+        archivedFile: archivePath,
+        newFile: this.logFilePath 
+      }, '✅ Knowledge graph archived and reset');
+      
+    } catch (error) {
+      this.logger.error({ error, archivePath }, 'Failed to archive oversized knowledge graph file');
+      throw error;
+    }
+  }
+
   async appendEntity(entity: DagNode, retries = 3) {
+    // Check file size before appending to prevent oversized files
+    await this.checkFileSize();
+    
     // Temporarily disable cycle detection to fix performance issues
     // TODO: Re-enable with optimized algorithm once performance is stable
     // if (await this.wouldCreateCycle(entity)) {
@@ -231,6 +370,204 @@ export class KnowledgeGraphManager {
 
     this.logger.error({ err }, 'Error appending entity after retries');
     throw err;
+  }
+
+  /**
+   * Data cleanup utility to remove stale or old knowledge graph entries
+   * This helps prevent oversized files and maintains performance
+   */
+  async cleanupStaleEntries(options: {
+    olderThanDays?: number;
+    maxNodes?: number;
+    dryRun?: boolean;
+  } = {}): Promise<{ removed: number; kept: number; sizeBefore: number; sizeAfter: number }> {
+    const { olderThanDays = 30, maxNodes = 50000, dryRun = false } = options;
+    
+    this.logger.info({ olderThanDays, maxNodes, dryRun }, 'Starting knowledge graph cleanup');
+    
+    // Get file size before cleanup
+    const statsBefore = await fs.stat(this.logFilePath);
+    const sizeBefore = statsBefore.size;
+    
+    if (sizeBefore === 0) {
+      return { removed: 0, kept: 0, sizeBefore: 0, sizeAfter: 0 };
+    }
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+    
+    const fileStream = fsSync.createReadStream(this.logFilePath);
+    const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+    
+    const keptNodes: string[] = [];
+    let removedCount = 0;
+    let keptCount = 0;
+    let totalProcessed = 0;
+    
+    try {
+      for await (const line of rl) {
+        totalProcessed++;
+        const node = this.parseDagNode(line);
+        
+        if (!node) {
+          removedCount++; // Count invalid entries as removed
+          continue;
+        }
+        
+        const nodeDate = new Date(node.createdAt);
+        const shouldKeep = nodeDate > cutoffDate && keptCount < maxNodes;
+        
+        if (shouldKeep) {
+          keptNodes.push(line);
+          keptCount++;
+        } else {
+          removedCount++;
+        }
+        
+        // Log progress for large cleanups
+        if (totalProcessed % 10000 === 0) {
+          this.logger.info({ 
+            processed: totalProcessed, 
+            kept: keptCount, 
+            removed: removedCount 
+          }, 'Cleanup progress...');
+        }
+      }
+    } finally {
+      rl.close();
+      fileStream.close();
+    }
+    
+    let sizeAfter = sizeBefore;
+    
+    if (!dryRun && removedCount > 0) {
+      // Create backup of original file
+      const backupPath = `${this.logFilePath}.cleanup-backup-${Date.now()}`;
+      await fs.rename(this.logFilePath, backupPath);
+      
+      // Write cleaned data
+      await fs.writeFile(this.logFilePath, keptNodes.join('\n') + (keptNodes.length > 0 ? '\n' : ''));
+      
+      // Get new file size
+      const statsAfter = await fs.stat(this.logFilePath);
+      sizeAfter = statsAfter.size;
+      
+      // Clear caches and reinitialize index
+      this.nodeCache.clear();
+      this.indexSystem = new KnowledgeGraphIndexSystem();
+      this.isIndexInitialized = false;
+      await this.initializeIndex();
+      
+      this.logger.info({ 
+        backupPath,
+        sizeBefore: `${(sizeBefore / 1024 / 1024).toFixed(2)}MB`,
+        sizeAfter: `${(sizeAfter / 1024 / 1024).toFixed(2)}MB`,
+        spaceFreed: `${((sizeBefore - sizeAfter) / 1024 / 1024).toFixed(2)}MB`
+      }, '✅ Knowledge graph cleanup completed');
+    }
+    
+    return { 
+      removed: removedCount, 
+      kept: keptCount, 
+      sizeBefore, 
+      sizeAfter 
+    };
+  }
+
+  /**
+   * Health monitoring for data directory sizes and growth rates
+   */
+  async getDataHealthMetrics(): Promise<{
+    knowledgeGraph: { size: number; sizeFormatted: string; nodeCount: number };
+    dataDirectory: { totalSize: number; totalSizeFormatted: string; fileCount: number };
+    semanticCache: { size: number; sizeFormatted: string; fileCount: number };
+    recommendations: string[];
+  }> {
+    const recommendations: string[] = [];
+    
+    // Check knowledge graph file
+    const kgStats = await fs.stat(this.logFilePath).catch(() => null);
+    const kgSize = kgStats?.size || 0;
+    const kgSizeMB = kgSize / (1024 * 1024);
+    
+    // Estimate node count from current index or file size
+    const nodeCount = this.isIndexInitialized 
+      ? this.indexSystem.getStats().totalNodes 
+      : Math.floor(kgSize / 500); // Rough estimate
+    
+    // Check entire data directory
+    let totalDataSize = 0;
+    let totalFileCount = 0;
+    try {
+      const dataFiles = await fs.readdir(dataDir);
+      for (const file of dataFiles) {
+        const filePath = path.join(dataDir, file);
+        const stat = await fs.stat(filePath).catch(() => null);
+        if (stat?.isFile()) {
+          totalDataSize += stat.size;
+          totalFileCount++;
+        }
+      }
+    } catch (error) {
+      this.logger.warn({ error }, 'Could not read data directory for health check');
+    }
+    
+    // Check semantic cache directory
+    let cacheSize = 0;
+    let cacheFileCount = 0;
+    const cacheDir = path.join(dataDir, 'semantic_cache');
+    try {
+      const cacheFiles = await fs.readdir(cacheDir);
+      for (const file of cacheFiles) {
+        const filePath = path.join(cacheDir, file);
+        const stat = await fs.stat(filePath).catch(() => null);
+        if (stat?.isFile()) {
+          cacheSize += stat.size;
+          cacheFileCount++;
+        }
+      }
+    } catch {
+      // Cache directory might not exist yet
+    }
+    
+    // Generate recommendations
+    if (kgSizeMB > 8) {
+      recommendations.push(`🚨 Knowledge graph file is ${kgSizeMB.toFixed(1)}MB (>8MB). Consider cleanup.`);
+    } else if (kgSizeMB > 5) {
+      recommendations.push(`⚠️ Knowledge graph file is ${kgSizeMB.toFixed(1)}MB. Monitor for growth.`);
+    }
+    
+    if (nodeCount > 40000) {
+      recommendations.push(`📊 High node count (${nodeCount.toLocaleString()}). Consider archiving old entries.`);
+    }
+    
+    const totalDataSizeMB = totalDataSize / (1024 * 1024);
+    if (totalDataSizeMB > 50) {
+      recommendations.push(`💽 Total data directory is ${totalDataSizeMB.toFixed(1)}MB. Review for cleanup opportunities.`);
+    }
+    
+    if (recommendations.length === 0) {
+      recommendations.push('✅ All data sizes are within healthy limits.');
+    }
+    
+    return {
+      knowledgeGraph: {
+        size: kgSize,
+        sizeFormatted: `${kgSizeMB.toFixed(2)}MB`,
+        nodeCount
+      },
+      dataDirectory: {
+        totalSize: totalDataSize,
+        totalSizeFormatted: `${totalDataSizeMB.toFixed(2)}MB`,
+        fileCount: totalFileCount
+      },
+      semanticCache: {
+        size: cacheSize,
+        sizeFormatted: `${(cacheSize / 1024 / 1024).toFixed(2)}MB`,
+        fileCount: cacheFileCount
+      },
+      recommendations
+    };
   }
 
   private async getCachedNode(id: string): Promise<DagNode | undefined> {

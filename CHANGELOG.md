@@ -2,7 +2,23 @@
 
 ## [Unreleased]
 
+### Fixed
+- fix: resolve MCP server JSON protocol interference causing connection failures
+  - Fixed console output in GeminiConnectionManager.ts that was corrupting JSON-RPC communication
+  - Removed console.error calls in genai.ts structured output fallback handling
+  - Eliminated console.warn in logger.ts that interfered with MCP protocol initialization
+  - Changed debug logging to file-only output to prevent stdout contamination
+  - MCP server now maintains clean JSON-RPC communication without protocol corruption
+  - Resolves "SyntaxError: Expected ',' or ']' after array element" errors in MCP client
+  - All logging now properly routed to files while preserving MCP protocol integrity
+
 ### Added
+- feat: PHASE 0 COMPLETION - Multi-critic API connectivity issue fully resolved
+  - Updated Development Roadmap to mark Phase 0 as COMPLETED (May 30, 2025)
+  - Documented comprehensive solution: Native structured output with Gemini SDK
+  - All success metrics achieved: zero fallbacks, circuit breaker stable, 3-critic consensus working
+  - Technical implementation details and before/after comparison documented in roadmap
+  - System now consistently produces multi-critic consensus reviews with guaranteed JSON validity
 - feat: Multi-critic consensus review is now enabled by default for `actor_think` tool
   - Provides comprehensive 3-critic analysis (Correctness, Efficiency, Security) by default
   - Can be disabled per-call by setting `feedback: false` in actor_think

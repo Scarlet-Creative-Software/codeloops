@@ -80,10 +80,7 @@ export function createLogger(options: CreateLoggerOptions = {}): CodeLoopsLogger
     logLevel = level ?? (process.env.LOG_LEVEL as LevelWithSilentOrString) ?? 'info';
   }
   
-  // Warn if debug level is set, as it can cause large log files
-  if (logLevel === 'debug' && withFile) {
-    console.warn('⚠️  Warning: LOG_LEVEL=debug can cause very large log files. Consider using "info" for production.');
-  }
+  // Skip console warnings in MCP mode as they interfere with JSON protocol
   const logger = pino({ level: logLevel }, transports);
   if (setGlobal && !globalLogger) {
     globalLogger = logger;

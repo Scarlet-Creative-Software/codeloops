@@ -665,7 +665,8 @@ export function getConnectionManager(apiKey?: string): GeminiConnectionManager {
       apiKey = codeloopsKey || geminiKey;
       
       // Safe logging for debugging - log which key source was used and first 8 chars
-      const logger = createLogger({ withDevStdout: true });
+      // Use file-only logging to avoid interfering with MCP JSON protocol
+      const logger = createLogger({ withFile: true });
       if (codeloopsKey) {
         logger.info(`Using CODELOOPS_KEY: ${codeloopsKey.substring(0, 8)}...`);
       } else if (geminiKey) {

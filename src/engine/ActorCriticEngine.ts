@@ -94,7 +94,10 @@ export class ActorCriticEngine {
     const { node } = await this.actor.think(input);
 
     // Check if enhanced multi-critic feedback is requested
-    if (input.feedback === true) {
+    // Use environment variable default when feedback is undefined
+    const shouldUseMultiCritic = input.feedback ?? (process.env.CODELOOPS_MULTI_CRITIC_DEFAULT === 'true');
+    
+    if (shouldUseMultiCritic) {
       try {
         const criticNode = await this.multiCriticEngine.performMultiCriticReview({
           actorNodeId: node.id,
