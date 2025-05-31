@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.7.0] - 2025-05-31
 
 ### Added
 - feat: implement comprehensive performance monitoring framework (May 31, 2025)
@@ -152,7 +152,7 @@
 - perf: expected 40-60% semantic cache hit rate for similar queries
 - perf: up to 50% reduction in external API calls through intelligent caching
 
-## [Unreleased]
+## [0.5.1] - 2025-05-30
 
 ### Phase 2.2: Memory-Mapped File Storage - COMPLETE ✅
 - feat: implement MemoryMappedStorageEngine for large knowledge graphs
