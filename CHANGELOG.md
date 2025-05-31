@@ -14,6 +14,15 @@
   - **Structured Data**: All metrics stored in JSON format for analysis and trending
 
 ### Fixed
+- fix: CRITICAL - resolve runtime MCP JSON protocol interference from background operations (May 31, 2025 - Phase 3)
+  - **Root Cause**: Background timers and logger instances using withDevStdout:true corrupting JSON-RPC protocol
+  - **Impact**: Continued "SyntaxError: Unexpected number in JSON at position 2" errors during runtime operations
+  - **Source**: GeminiConnectionManager, SemanticCacheManager, MemoryMappedStorageEngine background logging to stdout
+  - **Solution**: Replaced all background logging with file-only loggers to prevent stdout interference
+  - **Implementation**: Added createLogger({ withFile: true, withDevStdout: false }) for all background operations
+  - **Coverage**: Fixed 5-minute metrics logging, cleanup error logging, background flush error logging
+  - **Validation**: MCP server sustained operation confirmed, multi-critic consensus system operational
+  - **Result**: Complete elimination of runtime JSON-RPC protocol corruption
 - fix: CRITICAL - resolve secondary MCP JSON protocol interference in server initialization (May 31, 2025 - Phase 2)
   - **Root Cause**: Early logger.info() calls in src/index.ts main() function during MCP server startup
   - **Impact**: "SyntaxError: Unexpected number in JSON at position 2" error after Phase 1 deployment

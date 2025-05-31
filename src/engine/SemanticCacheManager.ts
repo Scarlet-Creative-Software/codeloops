@@ -15,7 +15,7 @@
  */
 
 import path from 'node:path';
-import { CodeLoopsLogger } from '../logger.ts';
+import { CodeLoopsLogger, createLogger } from '../logger.ts';
 import { PerformanceConfig } from '../config/schema.ts';
 import { dataDir } from '../config.ts';
 import { DagNode } from './KnowledgeGraph.ts';
@@ -519,7 +519,9 @@ export class DefaultSemanticCacheManager implements SemanticCacheManager {
       try {
         await this.cleanup();
       } catch (error) {
-        this.logger.error('[SemanticCacheManager] Scheduled cleanup failed', {
+        // Log to file only to prevent MCP JSON-RPC interference
+        const fileLogger = createLogger({ withFile: true, withDevStdout: false });
+        fileLogger.error('[SemanticCacheManager] Scheduled cleanup failed', {
           error: error instanceof Error ? error.message : String(error)
         });
       }

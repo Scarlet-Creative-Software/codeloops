@@ -13,7 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createLogger } from './logger.js';
 
-const logger = createLogger({ withDevStdout: true });
+const logger = createLogger({ withDevStdout: false, withFile: true });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

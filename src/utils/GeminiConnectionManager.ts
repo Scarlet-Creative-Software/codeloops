@@ -288,7 +288,7 @@ export class GeminiConnectionManager {
       logger?: CodeLoopsLogger;
     } = {}
   ) {
-    this.logger = options.logger || createLogger({ withDevStdout: true });
+    this.logger = options.logger || createLogger({ withDevStdout: false, withFile: true });
     
     // Initialize configurations
     this.rateLimitConfig = { ...DEFAULT_RATE_LIMIT, ...options.rateLimit };
@@ -343,7 +343,9 @@ export class GeminiConnectionManager {
 
     // Log metrics
     const metricsInterval = setInterval(() => {
-      this.logger.info({ metrics: this.metrics }, 'Connection manager metrics');
+      // Log to file only to prevent MCP JSON-RPC interference
+      const fileLogger = createLogger({ withFile: true, withDevStdout: false });
+      fileLogger.info({ metrics: this.metrics }, 'Connection manager metrics');
     }, 300000); // Every 5 minutes
     this.maintenanceIntervals.push(metricsInterval);
   }

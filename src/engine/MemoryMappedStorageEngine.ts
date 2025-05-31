@@ -16,7 +16,7 @@ import fs from 'node:fs/promises';
 import { Buffer } from 'node:buffer';
 import path from 'node:path';
 // Note: z import will be used for future validation schemas
-import { CodeLoopsLogger } from '../logger.ts';
+import { CodeLoopsLogger, createLogger } from '../logger.ts';
 import { DagNode } from './KnowledgeGraph.ts';
 
 // -----------------------------------------------------------------------------
@@ -640,7 +640,9 @@ export class MemoryMappedStorageEngine {
       try {
         await this.flushToDisk();
       } catch (error) {
-        this.logger.error('[MemoryMappedStorageEngine] Background flush failed', { error });
+        // Log to file only to prevent MCP JSON-RPC interference
+        const fileLogger = createLogger({ withFile: true, withDevStdout: false });
+        fileLogger.error('[MemoryMappedStorageEngine] Background flush failed', { error });
       }
     }, this.config.backgroundFlushInterval);
   }
